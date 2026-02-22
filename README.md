@@ -36,6 +36,9 @@ Crucible's emulation and detection workflows are organized around the MITRE ATT&
 **5. Multi-Platform Targets**
 Adversaries don't only target Windows. Crucible supports ephemeral Windows, Linux, macOS, and network OS targets. The persistent core remains consistent; the attack surface is flexible.
 
+**6. Network Visibility at Every Boundary**
+Two dedicated Zeek sensors — Arbiter and Witness — provide complete network visibility. No research traffic moves through the environment without being observed and forwarded to Nexus.
+
 ---
 
 ## Architecture Overview
@@ -44,14 +47,16 @@ Crucible is organized into two layers: a **Persistent Core** that is always runn
 
 ### Persistent Core
 
-| Component | Crucible Name | Role |
-|---|---|---|
-| Elastic Stack (Elasticsearch + Kibana + Fleet) | **Nexus** | Central hub for all telemetry, detection rules, and research dashboards. The Elasticsearch Python client exposes Nexus data to Jupyter for analysis workflows. |
-| Malware Analysis Workstation (REMnux-based) | **Void Prism** | Isolated analysis environment for static and dynamic sample analysis. Dangerous things enter here — controlled, contained, observed. |
-| Adversary Emulation Runner (Atomic Red Team) | **Maelstrom** | ATT&CK-aligned TTP execution engine. Freezes a moment in adversary behavior so you can study what it leaves behind. |
-| Detection Rule Library | **Khala** | The collective knowledge base. ATT&CK-mapped detection rules built from real telemetry observed in Crucible research sessions. |
-| Network Isolation Layer (INetSim / FakeNet-NG) | **Dark Shrine** | Simulates internet-facing services without real external connectivity. Malware calls home — Dark Shrine answers. |
-| Research Interface (Jupyter Notebook) | **Nexus Console** | Jupyter Notebook server with Elasticsearch Python client pre-configured. Query, correlate, and document research findings in one place. |
+| Component | Crucible Name | VLAN | Role |
+|---|---|---|---|
+| Elastic Stack (Elasticsearch + Kibana + Fleet) | **Nexus** | Core | Central hub for all telemetry, detection rules, and research dashboards |
+| Jupyter Notebook + Elasticsearch Python client | **Nexus Console** | Core | Research interface for querying, correlating, and documenting findings |
+| INetSim / FakeNet-NG | **Dark Shrine** | Core | Simulates internet-facing services. Malware calls home — Dark Shrine answers. No real internet egress. |
+| REMnux-based Analysis Workstation | **Void Prism** | Analysis | Isolated environment for static and dynamic sample analysis |
+| Atomic Red Team Runner | **Maelstrom** | Management | ATT&CK-aligned TTP execution engine |
+| Detection Rule Library | **Khala** | N/A | Collective knowledge base of ATT&CK-mapped detection rules built from real Crucible telemetry |
+| Zeek North/South Sensor | **Arbiter** | Core | Monitors all inter-VLAN traffic at the virtual router boundary |
+| Zeek Detonation Sensor | **Witness** | Detonation | Captures 100% of wire traffic within the Detonation VLAN — every packet a malware sample sends or receives |
 
 ### Ephemeral Targets
 Spun up per research task, torn down when complete. All targets are pre-instrumented with Elastic Agent before first boot.
@@ -62,6 +67,22 @@ Spun up per research task, torn down when complete. All targets are pre-instrume
 | Linux | Ubuntu Server, Debian, CentOS |
 | macOS | macOS (bare metal / supported hypervisors only) |
 | Network OS | pfSense, VyOS, Cisco IOSv |
+
+---
+
+## Network Segmentation
+
+Crucible uses five isolated VLANs. Containment is non-negotiable — no research VM has real internet access, and no malware VM can reach your home network.
+
+| VLAN | Name | Subnet | Key Hosts |
+|---|---|---|---|
+| VLAN 10 | Management | 10.10.0.0/24 | Proxmox host, Ansible controller |
+| VLAN 20 | Core | 10.10.1.0/24 | Nexus, Dark Shrine, Arbiter |
+| VLAN 30 | Analysis | 10.10.2.0/24 | Void Prism |
+| VLAN 40 | Target | 10.10.3.0/24 | Ephemeral targets |
+| VLAN 50 | Detonation | 10.10.4.0/24 | Malware VMs, Witness |
+
+For full firewall rules, sensor placement rationale, sample intake procedures, and the Azure equivalent architecture see [docs/architecture/network-diagram.md](docs/architecture/network-diagram.md).
 
 ---
 
@@ -94,19 +115,20 @@ A stripped-down single-machine profile. Runs a minimal persistent core with one 
 ## Research Workflows
 
 ### Workflow 1: Malware Sample Analysis
-1. Intake sample to **Void Prism** (isolated analysis workstation)
-2. Perform static analysis — strings, PE headers, YARA, Ghidra
-3. Detonate in an ephemeral target VM with Elastic Agent pre-deployed
-4. Dynamic artifacts (process creation, network connections, file system changes, registry modifications) forward automatically to **Nexus**
-5. **Dark Shrine** handles any outbound network calls from the sample — no real internet egress
-6. Correlate static and dynamic findings in **Nexus Console** (Jupyter + Elasticsearch Python client)
-7. Export structured findings to a custom Elastic index for long-term reference
+1. Intake sample to **Void Prism** (Analysis VLAN) — perform initial static analysis before detonation
+2. Transfer sample to a Detonation VM via controlled intake process (never direct network path)
+3. Detonate with **Witness** and Elastic Agent running — all wire traffic and endpoint telemetry captured automatically
+4. **Dark Shrine** handles all outbound connection attempts — no real internet egress
+5. **Arbiter** captures any cross-VLAN traffic anomalies
+6. Correlate network and endpoint telemetry in **Nexus**
+7. Document findings in **Nexus Console** (Jupyter + Elasticsearch Python client)
+8. Export structured findings to custom Elastic index for long-term reference
 
 ### Workflow 2: TTP Emulation and Detection Development
 1. Select a MITRE ATT&CK technique to research
-2. Spin up an appropriate ephemeral target
+2. Spin up an appropriate ephemeral target in the Target VLAN
 3. Execute the technique via **Maelstrom** (Atomic Red Team) or manually
-4. Observe telemetry in **Nexus** — what data sources fired, what fields populated
+4. Observe endpoint and network telemetry in **Nexus**
 5. Write a detection rule and add it to **Khala**
 6. Validate the rule fires correctly, tune for false positive reduction
 7. Document technique, artifacts, and detection logic in **Nexus Console**
@@ -121,6 +143,8 @@ A stripped-down single-machine profile. Runs a minimal persistent core with one 
 - [ ] Nexus — Elastic Stack + Fleet persistent core provisioning
 - [ ] Void Prism — Analysis workstation provisioning (REMnux-based)
 - [ ] Dark Shrine — INetSim / FakeNet-NG network isolation layer
+- [ ] Arbiter — Zeek North/South sensor provisioning
+- [ ] Witness — Zeek Detonation sensor provisioning
 - [ ] Maelstrom — Atomic Red Team integration
 - [ ] Nexus Console — Jupyter Notebook + Elasticsearch Python client
 - [ ] Ephemeral Windows target template
@@ -129,6 +153,7 @@ A stripped-down single-machine profile. Runs a minimal persistent core with one 
 - [ ] Ghidra to Elastic artifact export pipeline
 - [ ] macOS target support
 - [ ] Network OS target support
+- [ ] AI layer — MCP servers for Nexus, Khala, and ATT&CK context (see `ai/`)
 - [ ] Blog post series documenting research workflows
 
 ---
@@ -153,6 +178,7 @@ Crucible was inspired by the work of the following open-source projects. We are 
 - [Atomic Red Team](https://github.com/redcanaryco/atomic-red-team) by Red Canary
 - [MITRE ATT&CK](https://attack.mitre.org)
 - [Elastic Detection Rules](https://github.com/elastic/detection-rules)
+- [Zeek Network Security Monitor](https://zeek.org)
 
 ---
 
