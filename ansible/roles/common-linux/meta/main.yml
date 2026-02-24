@@ -1,0 +1,8 @@
+---
+# Metadata for common-linux role
+galaxy_info:
+  author: apowers
+  description: Common Linux setup tasks
+  license: MIT
+  min_ansible_version: 2.9
+dependencies: []

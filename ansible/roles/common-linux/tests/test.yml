@@ -1,0 +1,5 @@
+---
+- name: Test common-linux role
+  hosts: all
+  roles:
+    - common-linux

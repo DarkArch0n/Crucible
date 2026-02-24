@@ -1,0 +1,11 @@
+---
+# Tasks for common-linux role
+- name: Update package cache
+  ansible.builtin.apt:
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Install common packages
+  ansible.builtin.package:
+    name: "{{ common_packages }}"
+    state: present

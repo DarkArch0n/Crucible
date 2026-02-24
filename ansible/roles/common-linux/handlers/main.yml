@@ -1,0 +1,6 @@
+---
+# Handlers for common-linux role
+- name: Restart sshd
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
