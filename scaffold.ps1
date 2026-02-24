@@ -67,12 +67,12 @@ $topLevelFiles = @(
 foreach ($file in $topLevelFiles) {
     if (-not (Test-Path $file)) {
         New-Item -ItemType File -Path $file -Force | Out-Null
-        Write-Host "Created: $file" -ForegroundColor Green
+        Write-Host "Created: $file" -ForegroundColor Yellow
     }
 }
 
 Write-Host ""
-Write-Host "Crucible scaffold complete." -ForegroundColor Magenta
+Write-Host "Crucible scaffold complete." -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Architecture: Three VLANs" -ForegroundColor Yellow
 Write-Host "  VLAN 10 - Management  : Proxmox, Ansible" -ForegroundColor White
