@@ -1,11 +1,60 @@
 ---
-# Tasks for common-linux role
-- name: Update package cache
-  ansible.builtin.apt:
-    update_cache: yes
-  when: ansible_os_family == "Debian"
+# common-linux/tasks/main.yml
+# Dispatcher — includes all sub-task files in dependency order
+#
+# This role applies the common baseline configuration for all Linux VMs
+# in the Crucible environment. It handles system packages, user setup,
+# SSH hardening, network configuration, time synchronization, kernel
+# hardening, firewall rules, logging, service cleanup, and MOTD.
+#
+# Per-VLAN or per-VM overrides should be applied via group_vars/host_vars.
 
-- name: Install common packages
-  ansible.builtin.package:
-    name: "{{ common_packages }}"
-    state: present
+- name: Include package management tasks
+  ansible.builtin.include_tasks: packages.yml
+  tags:
+    - packages
+
+- name: Include user management tasks
+  ansible.builtin.include_tasks: users.yml
+  tags:
+    - users
+
+- name: Include SSH hardening tasks
+  ansible.builtin.include_tasks: ssh.yml
+  tags:
+    - ssh
+
+- name: Include network configuration tasks
+  ansible.builtin.include_tasks: network.yml
+  tags:
+    - network
+
+- name: Include time synchronization tasks
+  ansible.builtin.include_tasks: time.yml
+  tags:
+    - time
+
+- name: Include sysctl kernel hardening tasks
+  ansible.builtin.include_tasks: sysctl.yml
+  tags:
+    - sysctl
+
+- name: Include firewall configuration tasks
+  ansible.builtin.include_tasks: firewall.yml
+  tags:
+    - firewall
+
+- name: Include logging configuration tasks
+  ansible.builtin.include_tasks: logging.yml
+  tags:
+    - logging
+
+- name: Include service management tasks
+  ansible.builtin.include_tasks: services.yml
+  tags:
+    - services
+
+- name: Include MOTD configuration tasks
+  ansible.builtin.include_tasks: motd.yml
+  tags:
+    - motd

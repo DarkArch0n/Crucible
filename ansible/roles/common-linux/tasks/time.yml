@@ -1,0 +1,48 @@
+---
+# common-linux/tasks/time.yml
+# Timezone and NTP configuration
+# Consistent timestamps across all VMs are critical for telemetry correlation
+
+- name: Set timezone to {{ crucible_timezone }}
+  community.general.timezone:
+    name: "{{ crucible_timezone }}"
+  tags:
+    - time
+    - ntp
+
+- name: Install chrony for NTP synchronization
+  ansible.builtin.package:
+    name: chrony
+    state: present
+  tags:
+    - time
+    - ntp
+
+- name: Configure chrony NTP servers
+  ansible.builtin.template:
+    src: chrony.conf.j2
+    dest: /etc/chrony/chrony.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: yes
+  notify: Restart chrony
+  tags:
+    - time
+    - ntp
+
+- name: Ensure chrony is enabled and running
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: yes
+  tags:
+    - time
+    - ntp
+
+- name: Enable hardware clock sync
+  ansible.builtin.command:
+    cmd: hwclock --systohc
+  changed_when: false
+  tags:
+    - time

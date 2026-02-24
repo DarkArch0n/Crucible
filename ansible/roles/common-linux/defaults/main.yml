@@ -1,7 +1,187 @@
 ---
 # Default variables for common-linux role
+# These can be overridden per host/group in inventory
+
+# ------------------------------------------------------------------------------
+# Packages
+# ------------------------------------------------------------------------------
 common_packages:
   - curl
+  - wget
   - vim
   - git
   - htop
+  - jq
+  - unzip
+  - net-tools
+  - dnsutils
+  - tcpdump
+  - strace
+  - lsof
+  - tmux
+  - tree
+  - ca-certificates
+  - gnupg
+  - software-properties-common
+  - apt-transport-https
+
+common_packages_remove:
+  - telnetd
+  - rsh-server
+  - rsh-client
+
+# ------------------------------------------------------------------------------
+# Users
+# ------------------------------------------------------------------------------
+crucible_user: crucible
+crucible_user_shell: /bin/bash
+crucible_user_groups:
+  - sudo
+crucible_user_create_home: true
+# Set to a password hash or leave empty for key-only auth
+crucible_user_password: "!"
+
+# ------------------------------------------------------------------------------
+# SSH
+# ------------------------------------------------------------------------------
+sshd_port: 22
+sshd_permit_root_login: "no"
+sshd_password_authentication: "no"
+sshd_pubkey_authentication: "yes"
+sshd_max_auth_tries: 3
+sshd_client_alive_interval: 300
+sshd_client_alive_count_max: 2
+sshd_x11_forwarding: "no"
+sshd_allow_agent_forwarding: "no"
+sshd_allow_tcp_forwarding: "no"
+sshd_permit_empty_passwords: "no"
+sshd_allowed_users:
+  - "{{ crucible_user }}"
+
+# ------------------------------------------------------------------------------
+# Network
+# ------------------------------------------------------------------------------
+# DNS pointed at Dark Shrine for simulated internet (per architecture)
+crucible_dns_servers:
+  - 10.10.1.20
+crucible_dns_search_domain: crucible.local
+
+# Disable IPv6 (out of scope per architecture doc)
+crucible_disable_ipv6: true
+
+# Hostname is typically set by Terraform/Ansible inventory
+# but can be overridden here
+crucible_set_hostname: true
+
+# ------------------------------------------------------------------------------
+# Time
+# ------------------------------------------------------------------------------
+crucible_timezone: UTC
+crucible_ntp_servers:
+  - 10.10.1.20
+
+# ------------------------------------------------------------------------------
+# Firewall (UFW)
+# ------------------------------------------------------------------------------
+crucible_firewall_enabled: true
+crucible_firewall_default_incoming: deny
+crucible_firewall_default_outgoing: deny
+crucible_firewall_logging: "on"
+
+# Base rules applied to all Linux VMs
+# Additional per-VLAN rules should be added via group_vars
+crucible_firewall_rules:
+  # Allow SSH from Management VLAN
+  - rule: allow
+    direction: in
+    from_ip: 10.10.0.0/24
+    port: 22
+    proto: tcp
+    comment: "SSH from Management VLAN"
+  # Allow Elastic Agent telemetry to Nexus
+  - rule: allow
+    direction: out
+    to_ip: 10.10.1.10
+    port: 9200
+    proto: tcp
+    comment: "Elasticsearch telemetry to Nexus"
+  # Allow Fleet enrollment/checkin
+  - rule: allow
+    direction: out
+    to_ip: 10.10.1.10
+    port: 8220
+    proto: tcp
+    comment: "Fleet enrollment to Nexus"
+  # Allow DNS to Dark Shrine
+  - rule: allow
+    direction: out
+    to_ip: 10.10.1.20
+    port: 53
+    proto: udp
+    comment: "DNS to Dark Shrine"
+  # Allow NTP to time source
+  - rule: allow
+    direction: out
+    to_ip: 10.10.1.20
+    port: 123
+    proto: udp
+    comment: "NTP time sync"
+
+# ------------------------------------------------------------------------------
+# Sysctl / Kernel Hardening
+# ------------------------------------------------------------------------------
+crucible_sysctl_params:
+  # Disable IPv6
+  net.ipv6.conf.all.disable_ipv6: 1
+  net.ipv6.conf.default.disable_ipv6: 1
+  # Prevent IP spoofing
+  net.ipv4.conf.all.rp_filter: 1
+  net.ipv4.conf.default.rp_filter: 1
+  # Ignore ICMP redirects
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.default.accept_redirects: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.default.send_redirects: 0
+  # Ignore source-routed packets
+  net.ipv4.conf.all.accept_source_route: 0
+  net.ipv4.conf.default.accept_source_route: 0
+  # Log martian packets
+  net.ipv4.conf.all.log_martians: 1
+  # SYN flood protection
+  net.ipv4.tcp_syncookies: 1
+  # Disable IP forwarding (VMs are not routers)
+  net.ipv4.ip_forward: 0
+  # Harden ASLR
+  kernel.randomize_va_space: 2
+  # Restrict dmesg access
+  kernel.dmesg_restrict: 1
+  # Restrict kernel pointer exposure
+  kernel.kptr_restrict: 2
+  # Disable core dumps
+  fs.suid_dumpable: 0
+
+# ------------------------------------------------------------------------------
+# Logging
+# ------------------------------------------------------------------------------
+crucible_auditd_enabled: true
+crucible_auditd_packages:
+  - auditd
+  - audispd-plugins
+
+crucible_journald_max_disk_use: 500M
+crucible_journald_max_file_size: 50M
+crucible_journald_compress: "yes"
+crucible_journald_storage: persistent
+
+# ------------------------------------------------------------------------------
+# Services to disable
+# ------------------------------------------------------------------------------
+crucible_disabled_services:
+  - avahi-daemon
+  - cups
+  - bluetooth
+
+# ------------------------------------------------------------------------------
+# MOTD
+# ------------------------------------------------------------------------------
+crucible_motd_enabled: true

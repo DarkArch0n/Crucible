@@ -1,3 +1,37 @@
 ---
 # Role-specific variables for common-linux role
-# Add any role-specific variables here
+# These are NOT intended to be overridden — use defaults/ for tunable values.
+
+# Crucible network architecture constants
+crucible_mgmt_subnet: 10.10.0.0/24
+crucible_core_subnet: 10.10.1.0/24
+crucible_detonation_subnet: 10.10.2.0/24
+
+# Core component IPs
+crucible_nexus_elasticsearch_ip: 10.10.1.10
+crucible_nexus_kibana_ip: 10.10.1.11
+crucible_nexus_console_ip: 10.10.1.12
+crucible_dark_shrine_ip: 10.10.1.20
+crucible_arbiter_ip: 10.10.1.30
+crucible_witness_ip: 10.10.2.10
+
+# Ports
+crucible_elasticsearch_port: 9200
+crucible_fleet_port: 8220
+crucible_kibana_port: 5601
+
+# SSH config file path
+sshd_config_path: /etc/ssh/sshd_config
+
+# Sysctl config file
+sysctl_config_path: /etc/sysctl.d/99-crucible.conf
+
+# Resolved config path
+resolv_conf_path: /etc/resolv.conf
+
+# Journald config path
+journald_conf_path: /etc/systemd/journald.conf
+
+# Auditd config path
+auditd_conf_path: /etc/audit/auditd.conf
+auditd_rules_path: /etc/audit/rules.d/crucible.rules

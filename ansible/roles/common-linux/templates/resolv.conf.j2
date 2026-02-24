@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+# Crucible DNS Configuration
+# DNS pointed at Dark Shrine ({{ crucible_dark_shrine_ip }}) for simulated internet
+
+{% for dns in crucible_dns_servers %}
+nameserver {{ dns }}
+{% endfor %}
+search {{ crucible_dns_search_domain }}
+
+# Do not modify — managed by Ansible (common-linux role)

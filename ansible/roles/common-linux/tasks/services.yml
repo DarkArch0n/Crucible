@@ -1,0 +1,37 @@
+---
+# common-linux/tasks/services.yml
+# Disable unnecessary services to reduce attack surface and telemetry noise
+
+- name: Check which services exist
+  ansible.builtin.command:
+    cmd: "systemctl list-unit-files {{ item }}.service"
+  register: service_check
+  loop: "{{ crucible_disabled_services }}"
+  changed_when: false
+  failed_when: false
+  tags:
+    - services
+    - hardening
+
+- name: Disable unnecessary services
+  ansible.builtin.service:
+    name: "{{ item.item }}"
+    state: stopped
+    enabled: no
+  loop: "{{ service_check.results }}"
+  when: item.rc == 0 and item.item ~ '.service' in item.stdout
+  failed_when: false
+  tags:
+    - services
+    - hardening
+
+- name: Mask unnecessary services to prevent re-activation
+  ansible.builtin.systemd:
+    name: "{{ item.item }}"
+    masked: yes
+  loop: "{{ service_check.results }}"
+  when: item.rc == 0 and item.item ~ '.service' in item.stdout
+  failed_when: false
+  tags:
+    - services
+    - hardening

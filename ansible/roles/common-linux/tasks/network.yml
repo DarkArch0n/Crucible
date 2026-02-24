@@ -1,0 +1,73 @@
+---
+# common-linux/tasks/network.yml
+# DNS, hostname, and IPv6 configuration
+
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+  when: crucible_set_hostname
+  tags:
+    - network
+    - hostname
+
+- name: Update /etc/hosts with hostname
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1'
+    line: "127.0.1.1 {{ inventory_hostname }}"
+    state: present
+  when: crucible_set_hostname
+  tags:
+    - network
+    - hostname
+
+- name: Configure DNS resolution (resolv.conf)
+  ansible.builtin.template:
+    src: resolv.conf.j2
+    dest: "{{ resolv_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  tags:
+    - network
+    - dns
+
+- name: Prevent NetworkManager from overwriting resolv.conf
+  ansible.builtin.lineinfile:
+    path: /etc/NetworkManager/NetworkManager.conf
+    regexp: '^dns='
+    insertafter: '^\[main\]'
+    line: "dns=none"
+    state: present
+  when: ansible_service_mgr == "systemd"
+  failed_when: false
+  notify: Restart NetworkManager
+  tags:
+    - network
+    - dns
+
+- name: Prevent systemd-resolved from managing resolv.conf
+  ansible.builtin.service:
+    name: systemd-resolved
+    state: stopped
+    enabled: no
+  failed_when: false
+  tags:
+    - network
+    - dns
+
+- name: Disable IPv6 via sysctl
+  ansible.builtin.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: yes
+    state: present
+    reload: yes
+  loop:
+    - { key: "net.ipv6.conf.all.disable_ipv6", value: "1" }
+    - { key: "net.ipv6.conf.default.disable_ipv6", value: "1" }
+  when: crucible_disable_ipv6
+  tags:
+    - network
+    - ipv6
+    - hardening

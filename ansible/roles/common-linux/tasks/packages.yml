@@ -1,0 +1,45 @@
+---
+# common-linux/tasks/packages.yml
+# System updates and common package installation
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+  tags:
+    - packages
+    - update
+
+- name: Upgrade all packages to latest version
+  ansible.builtin.apt:
+    upgrade: safe
+  when: ansible_os_family == "Debian"
+  tags:
+    - packages
+    - update
+
+- name: Install common packages
+  ansible.builtin.package:
+    name: "{{ common_packages }}"
+    state: present
+  tags:
+    - packages
+
+- name: Remove unwanted packages
+  ansible.builtin.package:
+    name: "{{ common_packages_remove }}"
+    state: absent
+  when: common_packages_remove | length > 0
+  tags:
+    - packages
+    - hardening
+
+- name: Enable automatic security updates (unattended-upgrades)
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+  when: ansible_os_family == "Debian"
+  tags:
+    - packages
+    - security

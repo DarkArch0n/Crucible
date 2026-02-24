@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+# Crucible Kernel Hardening Parameters
+# Deployed to: {{ sysctl_config_path }}
+
+{% for key, value in crucible_sysctl_params.items() %}
+{{ key }} = {{ value }}
+{% endfor %}

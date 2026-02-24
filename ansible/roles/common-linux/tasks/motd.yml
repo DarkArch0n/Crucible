@@ -1,0 +1,34 @@
+---
+# common-linux/tasks/motd.yml
+# Crucible environment banner / MOTD
+
+- name: Deploy Crucible MOTD banner
+  ansible.builtin.template:
+    src: motd.j2
+    dest: /etc/motd
+    owner: root
+    group: root
+    mode: "0644"
+  when: crucible_motd_enabled
+  tags:
+    - motd
+
+- name: Deploy Crucible SSH banner
+  ansible.builtin.template:
+    src: ssh-banner.j2
+    dest: /etc/ssh/crucible-banner
+    owner: root
+    group: root
+    mode: "0644"
+  when: crucible_motd_enabled
+  tags:
+    - motd
+    - ssh
+
+- name: Remove default dynamic MOTD scripts
+  ansible.builtin.file:
+    path: /etc/update-motd.d
+    state: absent
+  when: crucible_motd_enabled
+  tags:
+    - motd

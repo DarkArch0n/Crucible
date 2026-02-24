@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+# Crucible Journald Configuration
+# Persistent logging with controlled disk usage
+
+[Journal]
+Storage={{ crucible_journald_storage }}
+Compress={{ crucible_journald_compress }}
+SystemMaxUse={{ crucible_journald_max_disk_use }}
+SystemMaxFileSize={{ crucible_journald_max_file_size }}
+MaxRetentionSec=1month
+ForwardToSyslog=yes
+ForwardToWall=yes

@@ -1,0 +1,92 @@
+# {{ ansible_managed }}
+# Crucible Audit Rules
+# Capture security-relevant system activity for Elastic Agent telemetry
+
+# Remove all existing rules
+-D
+
+# Set buffer size
+-b 8192
+
+# Failure mode: 1 = printk, 2 = panic
+-f 1
+
+# ============================================================================
+# Process execution and privilege escalation
+# ============================================================================
+
+# Monitor all execve calls (process execution)
+-a always,exit -F arch=b64 -S execve -k crucible_exec
+-a always,exit -F arch=b32 -S execve -k crucible_exec
+
+# Monitor setuid/setgid calls
+-a always,exit -F arch=b64 -S setuid,setgid,setreuid,setregid -k crucible_privesc
+-a always,exit -F arch=b32 -S setuid,setgid,setreuid,setregid -k crucible_privesc
+
+# Monitor su and sudo usage
+-w /usr/bin/su -p x -k crucible_privesc
+-w /usr/bin/sudo -p x -k crucible_privesc
+-w /etc/sudoers -p wa -k crucible_privesc
+-w /etc/sudoers.d/ -p wa -k crucible_privesc
+
+# ============================================================================
+# File system monitoring
+# ============================================================================
+
+# Authentication and user databases
+-w /etc/passwd -p wa -k crucible_identity
+-w /etc/shadow -p wa -k crucible_identity
+-w /etc/group -p wa -k crucible_identity
+-w /etc/gshadow -p wa -k crucible_identity
+
+# SSH configuration
+-w /etc/ssh/sshd_config -p wa -k crucible_ssh
+-w /root/.ssh/ -p wa -k crucible_ssh
+
+# Cron and scheduled tasks
+-w /etc/crontab -p wa -k crucible_cron
+-w /etc/cron.d/ -p wa -k crucible_cron
+-w /var/spool/cron/ -p wa -k crucible_cron
+-w /etc/anacrontab -p wa -k crucible_cron
+
+# Systemd service files (persistence)
+-w /etc/systemd/system/ -p wa -k crucible_persistence
+-w /usr/lib/systemd/system/ -p wa -k crucible_persistence
+-w /run/systemd/system/ -p wa -k crucible_persistence
+
+# Kernel modules
+-w /sbin/insmod -p x -k crucible_kernel
+-w /sbin/rmmod -p x -k crucible_kernel
+-w /sbin/modprobe -p x -k crucible_kernel
+
+# ============================================================================
+# Network activity
+# ============================================================================
+
+# Monitor network socket creation
+-a always,exit -F arch=b64 -S socket -F a0=2 -k crucible_network
+-a always,exit -F arch=b64 -S connect -k crucible_network
+-a always,exit -F arch=b32 -S socket -F a0=2 -k crucible_network
+-a always,exit -F arch=b32 -S connect -k crucible_network
+
+# ============================================================================
+# System integrity
+# ============================================================================
+
+# Login and PAM configuration
+-w /etc/login.defs -p wa -k crucible_login
+-w /etc/pam.d/ -p wa -k crucible_pam
+
+# Name service switch
+-w /etc/nsswitch.conf -p wa -k crucible_nss
+
+# Network configuration
+-w /etc/hosts -p wa -k crucible_network_config
+-w /etc/resolv.conf -p wa -k crucible_network_config
+-w /etc/sysctl.conf -p wa -k crucible_sysctl
+-w /etc/sysctl.d/ -p wa -k crucible_sysctl
+
+# ============================================================================
+# Make the audit configuration immutable (requires reboot to change)
+# ============================================================================
+-e 2

@@ -1,0 +1,47 @@
+---
+# common-linux/tasks/users.yml
+# Research user creation and configuration
+
+- name: Create crucible research user
+  ansible.builtin.user:
+    name: "{{ crucible_user }}"
+    shell: "{{ crucible_user_shell }}"
+    groups: "{{ crucible_user_groups }}"
+    append: yes
+    create_home: "{{ crucible_user_create_home }}"
+    password: "{{ crucible_user_password }}"
+    state: present
+  tags:
+    - users
+
+- name: Ensure crucible user home directory permissions
+  ansible.builtin.file:
+    path: "/home/{{ crucible_user }}"
+    owner: "{{ crucible_user }}"
+    group: "{{ crucible_user }}"
+    mode: "0750"
+    state: directory
+  when: crucible_user_create_home
+  tags:
+    - users
+
+- name: Create .ssh directory for crucible user
+  ansible.builtin.file:
+    path: "/home/{{ crucible_user }}/.ssh"
+    owner: "{{ crucible_user }}"
+    group: "{{ crucible_user }}"
+    mode: "0700"
+    state: directory
+  tags:
+    - users
+    - ssh
+
+- name: Configure sudoers for crucible user (passwordless sudo)
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/crucible
+    line: "{{ crucible_user }} ALL=(ALL) NOPASSWD:ALL"
+    create: yes
+    mode: "0440"
+    validate: "visudo -cf %s"
+  tags:
+    - users

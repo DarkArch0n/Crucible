@@ -1,0 +1,75 @@
+---
+# common-linux/tasks/logging.yml
+# Auditd and journald configuration for telemetry-first research
+
+# --- Auditd ---
+- name: Install auditd packages
+  ansible.builtin.package:
+    name: "{{ crucible_auditd_packages }}"
+    state: present
+  when: crucible_auditd_enabled
+  tags:
+    - logging
+    - auditd
+
+- name: Deploy auditd configuration
+  ansible.builtin.template:
+    src: auditd.conf.j2
+    dest: "{{ auditd_conf_path }}"
+    owner: root
+    group: root
+    mode: "0640"
+    backup: yes
+  notify: Restart auditd
+  when: crucible_auditd_enabled
+  tags:
+    - logging
+    - auditd
+
+- name: Deploy Crucible audit rules
+  ansible.builtin.template:
+    src: crucible-audit.rules.j2
+    dest: "{{ auditd_rules_path }}"
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart auditd
+  when: crucible_auditd_enabled
+  tags:
+    - logging
+    - auditd
+
+- name: Ensure auditd is enabled and running
+  ansible.builtin.service:
+    name: auditd
+    state: started
+    enabled: yes
+  when: crucible_auditd_enabled
+  tags:
+    - logging
+    - auditd
+
+# --- Journald ---
+- name: Configure journald for persistent logging
+  ansible.builtin.template:
+    src: journald.conf.j2
+    dest: "{{ journald_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: yes
+  notify: Restart journald
+  tags:
+    - logging
+    - journald
+
+- name: Ensure /var/log/journal exists for persistent logs
+  ansible.builtin.file:
+    path: /var/log/journal
+    state: directory
+    owner: root
+    group: systemd-journal
+    mode: "2755"
+  tags:
+    - logging
+    - journald

@@ -1,0 +1,25 @@
+---
+# common-linux/tasks/sysctl.yml
+# Kernel parameter hardening
+
+- name: Apply Crucible sysctl hardening parameters
+  ansible.builtin.template:
+    src: sysctl-crucible.conf.j2
+    dest: "{{ sysctl_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload sysctl
+  tags:
+    - sysctl
+    - hardening
+
+- name: Disable core dumps via limits.conf
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.conf
+    regexp: '^\*.*hard.*core'
+    line: "*               hard    core            0"
+    state: present
+  tags:
+    - sysctl
+    - hardening

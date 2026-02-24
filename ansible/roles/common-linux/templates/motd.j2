@@ -1,0 +1,19 @@
+
+ ██████╗██████╗ ██╗   ██╗ ██████╗██╗██████╗ ██╗     ███████╗
+██╔════╝██╔══██╗██║   ██║██╔════╝██║██╔══██╗██║     ██╔════╝
+██║     ██████╔╝██║   ██║██║     ██║██████╔╝██║     █████╗
+██║     ██╔══██╗██║   ██║██║     ██║██╔══██╗██║     ██╔══╝
+╚██████╗██║  ██║╚██████╔╝╚██████╗██║██████╔╝███████╗███████╗
+ ╚═════╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝╚═════╝ ╚══════╝╚══════╝
+
+  A Portable Adversary Research Environment
+
+  Host:     {{ inventory_hostname }}
+  VLAN:     {{ crucible_vlan | default('unknown') }}
+  IP:       {{ ansible_default_ipv4.address | default('unknown') }}
+  Role:     {{ crucible_role | default('common-linux') }}
+
+  ⚠  This system is part of an isolated research environment.
+     All activity is monitored and logged to Nexus.
+     Unauthorized access is prohibited.
+

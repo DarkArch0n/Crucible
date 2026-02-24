@@ -1,0 +1,66 @@
+---
+# common-linux/tasks/firewall.yml
+# UFW firewall baseline per Crucible network architecture
+# Additional per-VLAN or per-VM rules should be applied via group_vars
+
+- name: Install UFW
+  ansible.builtin.package:
+    name: ufw
+    state: present
+  when: crucible_firewall_enabled
+  tags:
+    - firewall
+    - hardening
+
+- name: Reset UFW to default state
+  community.general.ufw:
+    state: reset
+  when: crucible_firewall_enabled
+  tags:
+    - firewall
+
+- name: Set UFW default incoming policy to {{ crucible_firewall_default_incoming }}
+  community.general.ufw:
+    direction: incoming
+    default: "{{ crucible_firewall_default_incoming }}"
+  when: crucible_firewall_enabled
+  tags:
+    - firewall
+    - hardening
+
+- name: Set UFW default outgoing policy to {{ crucible_firewall_default_outgoing }}
+  community.general.ufw:
+    direction: outgoing
+    default: "{{ crucible_firewall_default_outgoing }}"
+  when: crucible_firewall_enabled
+  tags:
+    - firewall
+    - hardening
+
+- name: Apply Crucible firewall rules
+  community.general.ufw:
+    rule: "{{ item.rule }}"
+    direction: "{{ item.direction }}"
+    from_ip: "{{ item.from_ip | default(omit) }}"
+    to_ip: "{{ item.to_ip | default(omit) }}"
+    port: "{{ item.port | default(omit) }}"
+    proto: "{{ item.proto | default(omit) }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ crucible_firewall_rules }}"
+  when: crucible_firewall_enabled
+  tags:
+    - firewall
+
+- name: Enable UFW logging
+  community.general.ufw:
+    logging: "{{ crucible_firewall_logging }}"
+  when: crucible_firewall_enabled
+  tags:
+    - firewall
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+  when: crucible_firewall_enabled
+  tags:
+    - firewall

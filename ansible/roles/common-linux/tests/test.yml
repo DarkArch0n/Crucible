@@ -1,5 +1,63 @@
 ---
+# common-linux/tests/test.yml
+# Test playbook for the common-linux role
+#
+# Usage:
+#   ansible-playbook tests/test.yml -i tests/inventory
+#
+# Run specific sections with tags:
+#   ansible-playbook tests/test.yml -i tests/inventory --tags "ssh,firewall"
+
 - name: Test common-linux role
   hosts: all
+  become: yes
+  vars:
+    # Override defaults for testing
+    crucible_vlan: "test"
+    crucible_role: "test-vm"
   roles:
     - common-linux
+
+  post_tasks:
+    - name: Verify crucible user exists
+      ansible.builtin.command: id {{ crucible_user }}
+      register: user_check
+      changed_when: false
+
+    - name: Verify SSH is running
+      ansible.builtin.service_facts:
+
+    - name: Assert SSH service is active
+      ansible.builtin.assert:
+        that:
+          - "'sshd.service' in ansible_facts.services"
+          - "ansible_facts.services['sshd.service'].state == 'running'"
+        fail_msg: "SSH service is not running"
+
+    - name: Verify UFW is active
+      ansible.builtin.command: ufw status
+      register: ufw_status
+      changed_when: false
+      when: crucible_firewall_enabled
+
+    - name: Verify timezone is UTC
+      ansible.builtin.command: timedatectl show --property=Timezone --value
+      register: tz_check
+      changed_when: false
+
+    - name: Assert timezone is correct
+      ansible.builtin.assert:
+        that:
+          - "tz_check.stdout == crucible_timezone"
+        fail_msg: "Timezone is {{ tz_check.stdout }}, expected {{ crucible_timezone }}"
+
+    - name: Verify auditd is running
+      ansible.builtin.service_facts:
+
+    - name: Assert auditd is active
+      ansible.builtin.assert:
+        that:
+          - "'auditd.service' in ansible_facts.services"
+          - "ansible_facts.services['auditd.service'].state == 'running'"
+        fail_msg: "Auditd service is not running"
+      when: crucible_auditd_enabled
