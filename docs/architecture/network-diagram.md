@@ -15,17 +15,26 @@ If you are deploying Crucible and find yourself wanting to relax a firewall rule
 ### 1. Least Privilege Networking
 Every VM in Crucible has access to exactly what it needs and nothing more. A malware VM in the Detonation VLAN needs to send telemetry to Nexus and receive simulated internet responses from Dark Shrine. It needs nothing else. It gets nothing else.
 
-### 2. Unidirectional Telemetry Flow
-Telemetry flows in one direction — from research segments toward the Core VLAN where Nexus lives. Nexus does not initiate connections back into Target or Detonation segments for any reason other than initial Elastic Agent enrollment during provisioning. This ensures a compromised target cannot use the telemetry channel as a path back into the core infrastructure.
+### 2. Persistent Infrastructure, Ephemeral Research
+The Core VLAN — Nexus, Dark Shrine, Arbiter, Witness — is always running. Everything in the Detonation VLAN is ephemeral. Analysis VMs and malware VMs are spun up together for a research task and torn down when it's complete. Your findings live in Nexus, not on the VM.
 
-### 3. Simulated Internet, Never Real Internet
-No VM in the Target or Detonation VLANs ever has a path to the real internet. All outbound connection attempts from these segments are intercepted by Dark Shrine (INetSim/FakeNet-NG), which simulates realistic internet service responses. This is non-negotiable for malware analysis — real C2 communication must never leave your environment.
+### 3. Analysis and Detonation Are the Same Task
+The analysis workstation and the malware VM are two sides of the same research session. Colocating them in the Detonation VLAN removes the artificial barrier between them, eliminates the need for mediated file transfer, and means the whole research environment — analysis tooling included — is destroyed at the end of a session. No cross-contamination between samples.
 
-### 4. Sensor Coverage at Every Boundary
-Network visibility is achieved through two dedicated Zeek sensors — Arbiter and Witness — positioned to capture traffic at the inter-VLAN boundary and within the Detonation segment respectively. No research traffic flows through the environment without being observed.
+### 4. Per-VM Firewall Policies Within Detonation
+Analysis VMs and malware VMs live in the same VLAN but have different per-VM firewall rules. Analysis VMs may have controlled outbound access for pulling threat intel or signature updates. Malware VMs have none. Proxmox supports VM-level firewall rules natively — VLAN-level isolation and VM-level policy are complementary, not mutually exclusive.
 
-### 5. Management Plane Separation
-The control plane (Proxmox host, Ansible controller, SSH access) lives in a dedicated Management VLAN that is logically separate from all research traffic. This means a compromised research VM cannot reach your Proxmox host or disrupt provisioning infrastructure.
+### 5. Unidirectional Telemetry Flow
+Telemetry flows in one direction — from research segments toward the Core VLAN where Nexus lives. Nexus never initiates connections back into the Detonation VLAN for any reason other than initial Elastic Agent enrollment during provisioning.
+
+### 6. Simulated Internet, Never Real Internet
+No VM in the Detonation VLAN ever has a path to the real internet. All outbound connection attempts are intercepted by Dark Shrine (INetSim/FakeNet-NG), which simulates realistic internet service responses. This is non-negotiable for malware analysis.
+
+### 7. Sensor Coverage at Every Boundary
+Network visibility is achieved through two dedicated Zeek sensors — Arbiter and Witness — positioned to capture traffic at the inter-VLAN boundary and within the Detonation segment respectively.
+
+### 8. Management Plane Separation
+The control plane (Proxmox host, Ansible controller) lives in a dedicated Management VLAN that is logically separate from all research traffic. A compromised research VM cannot reach your Proxmox host.
 
 ---
 
@@ -33,11 +42,9 @@ The control plane (Proxmox host, Ansible controller, SSH access) lives in a dedi
 
 | VLAN | Name | Subnet | Purpose |
 |---|---|---|---|
-| VLAN 10 | Management | 10.10.0.0/24 | Control plane — Proxmox, Ansible, SSH |
+| VLAN 10 | Management | 10.10.0.0/24 | Control plane — Proxmox, Ansible |
 | VLAN 20 | Core | 10.10.1.0/24 | Persistent research infrastructure |
-| VLAN 30 | Analysis | 10.10.2.0/24 | Static and dynamic analysis workstation |
-| VLAN 40 | Target | 10.10.3.0/24 | Ephemeral victim targets |
-| VLAN 50 | Detonation | 10.10.4.0/24 | Malware detonation — most restricted |
+| VLAN 30 | Detonation | 10.10.2.0/24 | Malware detonation + analysis — most restricted |
 
 ### IP Allocation by Segment
 
@@ -52,30 +59,47 @@ The control plane (Proxmox host, Ansible controller, SSH access) lives in a dedi
 | Host | IP |
 |---|---|
 | Nexus (Elasticsearch) | 10.10.1.10 |
-| Nexus (Kibana) | 10.10.1.11 |
+| Nexus (Kibana + Fleet) | 10.10.1.11 |
 | Nexus Console (Jupyter) | 10.10.1.12 |
 | Dark Shrine (INetSim/FakeNet-NG) | 10.10.1.20 |
-| Arbiter (Zeek - North/South) | 10.10.1.30 |
+| Arbiter (Zeek North/South) | 10.10.1.30 |
 | Gateway | 10.10.1.254 |
 
-**Analysis VLAN (10.10.2.0/24)**
+**Detonation VLAN (10.10.2.0/24)**
 | Host | IP |
 |---|---|
-| Void Prism (REMnux) | 10.10.2.10 |
+| Witness (Zeek Detonation Sensor) | 10.10.2.10 |
+| Ephemeral VMs (DHCP pool) | 10.10.2.100 – 10.10.2.200 |
 | Gateway | 10.10.2.254 |
 
-**Target VLAN (10.10.3.0/24)**
-| Host | IP |
-|---|---|
-| Ephemeral Targets (DHCP pool) | 10.10.3.100 - 10.10.3.200 |
-| Gateway | 10.10.3.254 |
+---
 
-**Detonation VLAN (10.10.4.0/24)**
-| Host | IP |
-|---|---|
-| Witness (Zeek - Detonation) | 10.10.4.10 |
-| Malware VMs (DHCP pool) | 10.10.4.100 - 10.10.4.200 |
-| Gateway | 10.10.4.254 |
+## Ephemeral VM Templates
+
+The Detonation VLAN uses paired ephemeral templates. You spin up the pair that matches your research task and tear both down when you're done.
+
+| Template | OS | Role | When to Use |
+|---|---|---|---|
+| `win-malware` | Windows 10/11 or Server | Malware detonation target | PE samples, Windows-targeting malware |
+| `win-analysis` | Windows + FLARE-VM | Static and dynamic analysis workstation | Analyzing Windows PE samples |
+| `lin-malware` | Ubuntu / Debian | Malware detonation target | ELF binaries, Linux-targeting malware |
+| `lin-analysis` | REMnux | Static and dynamic analysis workstation | Analyzing ELF / cross-platform samples |
+
+**Example research session — Windows PE sample:**
+1. Spin up `win-malware` and `win-analysis` in the Detonation VLAN
+2. Transfer sample directly to `win-analysis` from external source via controlled intake
+3. Perform static analysis on `win-analysis` (strings, PE headers, YARA, Ghidra)
+4. Copy sample to `win-malware` for detonation
+5. Observe telemetry in Nexus — endpoint events from both VMs, network events from Witness
+6. Document findings in Nexus Console
+7. Tear down both VMs — findings persist in Nexus, VMs do not
+
+**Per-VM firewall policy differences within Detonation VLAN:**
+
+| VM Type | Outbound Allowed | Outbound Denied |
+|---|---|---|
+| Analysis VM (`win-analysis`, `lin-analysis`) | TCP/9200+8220 → Nexus · Optional: controlled threat intel sources | Real internet · All other outbound |
+| Malware VM (`win-malware`, `lin-malware`) | TCP/9200+8220 → Nexus · TCP/80,443 + UDP/53 → Dark Shrine only | Everything else — absolute |
 
 ---
 
@@ -87,10 +111,11 @@ The control plane (Proxmox host, Ansible controller, SSH access) lives in a dedi
 │                      (Your existing LAN)                         │
 │                                                                  │
 │   No Crucible research traffic crosses this boundary.            │
-│   Management VLAN is accessible from here for administration.    │
+│   Management VLAN accessible for SSH and Proxmox UI only.        │
 └──────────────────────────────┬──────────────────────────────────┘
-                               │
-                        Management access only
+                               │ SSH (TCP/22) · Proxmox UI (TCP/8006)
+                               │ Kibana (TCP/5601) · Jupyter (TCP/8888)
+                         [FIREWALL]
                                │
 ┌──────────────────────────────▼──────────────────────────────────┐
 │              MANAGEMENT VLAN — 10.10.0.0/24 (VLAN 10)           │
@@ -98,110 +123,98 @@ The control plane (Proxmox host, Ansible controller, SSH access) lives in a dedi
 │    Proxmox Host (10.10.0.1)    Ansible Controller (10.10.0.10)  │
 │                                                                  │
 │    Control plane only. Ansible provisions all VMs from here.     │
-│    SSH access to all segments routes through this VLAN.          │
-└───────────┬─────────────────────────────────────────────────────┘
-            │ Provisioning traffic only
-            │ (Ansible, SSH)
-            │
-┌───────────▼─────────────────────────────────────────────────────┐
-│                 CORE VLAN — 10.10.1.0/24 (VLAN 20)              │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ Provisioning only (Ansible/SSH)
+                       [FIREWALL]
+                            │
+┌───────────────────────────▼─────────────────────────────────────┐
+│                  CORE VLAN — 10.10.1.0/24 (VLAN 20)             │
 │                                                                  │
-│    Nexus — Elasticsearch (10.10.1.10)                           │
-│    Nexus — Kibana (10.10.1.11)                                  │
+│    Nexus — Elasticsearch (10.10.1.10)     ◄── All telemetry     │
+│    Nexus — Kibana + Fleet (10.10.1.11)                          │
 │    Nexus Console — Jupyter (10.10.1.12)                         │
 │    Dark Shrine — INetSim/FakeNet-NG (10.10.1.20)               │
-│    Arbiter — Zeek North/South Sensor (10.10.1.30)              │
+│    Arbiter — Zeek N/S Sensor (10.10.1.30) [promiscuous]        │
 │                                                                  │
-│    Receives telemetry from all segments (one direction).         │
-│    Dark Shrine handles all simulated internet responses.         │
-│    Arbiter mirrors and inspects all inter-VLAN traffic.          │
-└───────────┬──────────────┬──────────────────┬───────────────────┘
-            │              │                  │
-     Telemetry only  Telemetry only    Simulated internet
-     (one direction) (one direction)   responses only
-            │              │                  │
-┌───────────▼───┐  ┌────────▼─────────┐  ┌───▼───────────────────┐
-│ ANALYSIS VLAN │  │   TARGET VLAN    │  │   DETONATION VLAN     │
-│ 10.10.2.0/24  │  │  10.10.3.0/24   │  │   10.10.4.0/24        │
-│ (VLAN 30)     │  │  (VLAN 40)      │  │   (VLAN 50)           │
-│               │  │                 │  │                        │
-│ Void Prism    │  │ Ephemeral       │  │  Malware VMs          │
-│ (10.10.2.10)  │  │ Windows         │  │  (DHCP pool)          │
-│               │  │ Ephemeral       │  │                        │
-│ Static and    │  │ Linux           │  │  Witness — Zeek       │
-│ dynamic       │  │ Ephemeral       │  │  (10.10.4.10)         │
-│ analysis      │  │ Network OS      │  │                        │
-│               │  │                 │  │  Most restricted       │
-│ Cannot reach  │  │ No internet     │  │  segment.             │
-│ Detonation    │  │ access.         │  │  Witness captures     │
-│ directly.     │  │ No path to      │  │  100% of wire         │
-│               │  │ Detonation.     │  │  traffic here.        │
-└───────────────┘  └─────────────────┘  └───────────────────────┘
+│    Receives telemetry from Detonation VLAN (one direction).      │
+│    Dark Shrine answers all simulated internet requests.          │
+│    Arbiter captures all inter-VLAN traffic at the boundary.      │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ Telemetry only (one direction → Nexus)
+                            │ Simulated internet responses (Dark Shrine)
+                       [FIREWALL]
+                            │
+┌───────────────────────────▼─────────────────────────────────────┐
+│              DETONATION VLAN — 10.10.2.0/24 (VLAN 30)           │
+│                                                                  │
+│    Witness — Zeek Detonation Sensor (10.10.2.10) [promiscuous]  │
+│                                                                  │
+│    Ephemeral pairs (DHCP — spun up per session, destroyed after):│
+│    ┌─────────────────────┐  ┌─────────────────────┐            │
+│    │  win-analysis       │  │  win-malware        │            │
+│    │  FLARE-VM           │  │  Windows Target     │            │
+│    │  Ghidra · YARA      │  │  Elastic Agent      │            │
+│    └─────────────────────┘  └─────────────────────┘            │
+│    ┌─────────────────────┐  ┌─────────────────────┐            │
+│    │  lin-analysis       │  │  lin-malware        │            │
+│    │  REMnux             │  │  Linux Target       │            │
+│    │  Strings · Binwalk  │  │  Elastic Agent      │            │
+│    └─────────────────────┘  └─────────────────────┘            │
+│                                                                  │
+│    Most restricted segment. Witness sees every packet.           │
+│    No real internet — Dark Shrine only.                          │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Firewall Rules
 
-The following rules define allowed traffic between segments. All traffic not explicitly permitted is denied by default. These rules are implemented as Proxmox firewall rules at the cluster level and mirrored as Azure NSG rules in the cloud tier.
+All traffic not explicitly permitted is denied by default.
 
 ### Management VLAN (10.10.0.0/24)
 | Direction | Source | Destination | Port/Protocol | Purpose |
 |---|---|---|---|---|
-| Outbound | 10.10.0.0/24 | 10.10.1.0/24 | Any | Provision Core VMs |
-| Outbound | 10.10.0.0/24 | 10.10.2.0/24 | Any | Provision Analysis VMs |
-| Outbound | 10.10.0.0/24 | 10.10.3.0/24 | Any | Provision Target VMs |
-| Outbound | 10.10.0.0/24 | 10.10.4.0/24 | Any | Provision Detonation VMs |
 | Inbound | Home LAN | 10.10.0.0/24 | TCP/22 | SSH administration |
-| Inbound | Home LAN | 10.10.0.0/24 | TCP/8006 | Proxmox web UI |
+| Inbound | Home LAN | 10.10.0.1 | TCP/8006 | Proxmox web UI |
+| Outbound | 10.10.0.0/24 | 10.10.1.0/24 | Any | Provision Core VMs |
+| Outbound | 10.10.0.0/24 | 10.10.2.0/24 | Any | Provision Detonation VMs |
 
 ### Core VLAN (10.10.1.0/24)
 | Direction | Source | Destination | Port/Protocol | Purpose |
 |---|---|---|---|---|
-| Inbound | 10.10.2.0/24 | 10.10.1.10 | TCP/9200 | Elastic Agent telemetry from Analysis |
-| Inbound | 10.10.3.0/24 | 10.10.1.10 | TCP/9200 | Elastic Agent telemetry from Target |
-| Inbound | 10.10.4.0/24 | 10.10.1.10 | TCP/9200 | Elastic Agent telemetry from Detonation |
-| Inbound | 10.10.2.0/24 | 10.10.1.10 | TCP/8220 | Fleet enrollment from Analysis |
-| Inbound | 10.10.3.0/24 | 10.10.1.10 | TCP/8220 | Fleet enrollment from Target |
-| Inbound | 10.10.4.0/24 | 10.10.1.10 | TCP/8220 | Fleet enrollment from Detonation |
-| Inbound | Home LAN | 10.10.1.11 | TCP/5601 | Kibana UI access |
-| Inbound | Home LAN | 10.10.1.12 | TCP/8888 | Jupyter Notebook access |
-| Outbound | 10.10.1.20 | 10.10.4.0/24 | TCP/80,443,53 | Dark Shrine simulated responses |
-| Deny | Any | 10.10.3.0/24 | Any | Core never initiates into Target |
-| Deny | Any | 10.10.4.0/24 | Any | Core never initiates into Detonation |
+| Inbound | 10.10.2.0/24 | 10.10.1.10 | TCP/9200 | Elastic Agent telemetry |
+| Inbound | 10.10.2.0/24 | 10.10.1.10 | TCP/8220 | Fleet enrollment |
+| Inbound | Home LAN | 10.10.1.11 | TCP/5601 | Kibana UI |
+| Inbound | Home LAN | 10.10.1.12 | TCP/8888 | Jupyter UI |
+| Outbound | 10.10.1.20 | 10.10.2.0/24 | TCP/80,443 + UDP/53 | Dark Shrine responses |
+| Deny | Any | 10.10.2.0/24 | Any | Core never initiates into Detonation |
 
-### Analysis VLAN (10.10.2.0/24)
+### Detonation VLAN (10.10.2.0/24) — VLAN-level rules
 | Direction | Source | Destination | Port/Protocol | Purpose |
 |---|---|---|---|---|
-| Outbound | 10.10.2.10 | 10.10.1.10 | TCP/9200 | Elastic Agent telemetry to Nexus |
-| Outbound | 10.10.2.10 | 10.10.1.10 | TCP/8220 | Fleet enrollment |
-| Inbound | 10.10.0.0/24 | 10.10.2.10 | TCP/22 | SSH from Management |
-| Deny | 10.10.2.0/24 | 10.10.4.0/24 | Any | No direct path to Detonation |
-| Deny | 10.10.2.0/24 | 10.10.3.0/24 | Any | No direct path to Target |
-| Deny | 10.10.2.0/24 | Internet | Any | No real internet access |
+| Outbound | 10.10.2.0/24 | 10.10.1.10 | TCP/9200 | Elastic Agent telemetry |
+| Outbound | 10.10.2.0/24 | 10.10.1.10 | TCP/8220 | Fleet enrollment |
+| Inbound | 10.10.0.0/24 | 10.10.2.0/24 | TCP/22, TCP/5985 | SSH/WinRM from Management |
+| Deny | 10.10.2.0/24 | Internet | Any | Absolute. No real internet. Ever. |
+| Deny | 10.10.2.0/24 | 10.10.0.0/24 | Any | No path to Management |
 
-### Target VLAN (10.10.3.0/24)
-| Direction | Source | Destination | Port/Protocol | Purpose |
-|---|---|---|---|---|
-| Outbound | 10.10.3.0/24 | 10.10.1.10 | TCP/9200 | Elastic Agent telemetry to Nexus |
-| Outbound | 10.10.3.0/24 | 10.10.1.10 | TCP/8220 | Fleet enrollment |
-| Inbound | 10.10.0.0/24 | 10.10.3.0/24 | TCP/22,5985 | SSH/WinRM from Management |
-| Deny | 10.10.3.0/24 | 10.10.4.0/24 | Any | No path to Detonation |
-| Deny | 10.10.3.0/24 | 10.10.2.0/24 | Any | No path to Analysis |
-| Deny | 10.10.3.0/24 | Internet | Any | No real internet access |
+### Per-VM rules within Detonation (applied at VM level in Proxmox firewall)
 
-### Detonation VLAN (10.10.4.0/24)
-| Direction | Source | Destination | Port/Protocol | Purpose |
-|---|---|---|---|---|
-| Outbound | 10.10.4.0/24 | 10.10.1.10 | TCP/9200 | Elastic Agent telemetry to Nexus |
-| Outbound | 10.10.4.0/24 | 10.10.1.10 | TCP/8220 | Fleet enrollment |
-| Outbound | 10.10.4.0/24 | 10.10.1.20 | TCP/80,443 | Simulated HTTP/HTTPS to Dark Shrine |
-| Outbound | 10.10.4.0/24 | 10.10.1.20 | UDP/53 | Simulated DNS to Dark Shrine |
-| Inbound | 10.10.0.0/24 | 10.10.4.0/24 | TCP/22,5985 | SSH/WinRM from Management only |
-| Deny | 10.10.4.0/24 | Internet | Any | Absolute. No real internet. Ever. |
-| Deny | 10.10.4.0/24 | 10.10.2.0/24 | Any | No path to Analysis |
-| Deny | 10.10.4.0/24 | 10.10.3.0/24 | Any | No path to Target |
-| Deny | 10.10.4.0/24 | 10.10.0.0/24 | Any | No path to Management |
+**Malware VMs (`win-malware`, `lin-malware`)**
+| Direction | Destination | Port/Protocol | Purpose |
+|---|---|---|---|
+| Outbound | 10.10.1.10 | TCP/9200+8220 | Telemetry only |
+| Outbound | 10.10.1.20 | TCP/80,443 + UDP/53 | Simulated internet via Dark Shrine |
+| Deny | All other | Any | Everything else denied |
+
+**Analysis VMs (`win-analysis`, `lin-analysis`)**
+| Direction | Destination | Port/Protocol | Purpose |
+|---|---|---|---|
+| Outbound | 10.10.1.10 | TCP/9200+8220 | Telemetry only |
+| Outbound | 10.10.1.20 | TCP/80,443 + UDP/53 | Simulated internet via Dark Shrine |
+| Outbound | Optional controlled sources | TCP/443 | Threat intel / signature updates (explicit allowlist only) |
+| Deny | All other | Any | Everything else denied |
 
 ---
 
@@ -209,87 +222,89 @@ The following rules define allowed traffic between segments. All traffic not exp
 
 ### Arbiter — North/South Sensor (Core VLAN, 10.10.1.30)
 
-**Placement rationale:** Arbiter sits at the virtual router where all inter-VLAN traffic passes. By operating in promiscuous mode on the Core VLAN bridge, it captures all traffic crossing VLAN boundaries — telemetry flows, provisioning traffic, and any anomalous cross-segment communication that shouldn't be happening.
+**Placement rationale:** Arbiter sits at the virtual router where all inter-VLAN traffic passes. By operating in promiscuous mode on the Core VLAN bridge it captures all traffic crossing VLAN boundaries — telemetry flows, provisioning traffic, and any anomalous cross-segment communication.
 
 **What Arbiter captures:**
-- All telemetry flowing from Target and Detonation VLANs to Nexus
+- All telemetry flowing from Detonation VLAN to Nexus
 - All provisioning traffic from Management to research segments
 - Dark Shrine's simulated responses to Detonation segment requests
-- Any unexpected inter-VLAN traffic that violates firewall rules (useful for detecting misconfigurations or escape attempts)
+- Any unexpected inter-VLAN traffic (misconfigurations, escape attempts)
 
-**Zeek log types enabled on Arbiter:** conn.log, dns.log, http.log, ssl.log, x509.log, files.log, weird.log
+**Zeek log types enabled:** conn, dns, http, ssl, x509, files, weird
 
-**Why weird.log matters:** Zeek's weird.log captures protocol anomalies — malformed packets, unexpected protocol behavior, connection attempts that don't follow standard patterns. For threat research this is often where the most interesting behavioral signals appear.
+### Witness — Detonation Sensor (Detonation VLAN, 10.10.2.10)
 
-### Witness — Detonation Sensor (Detonation VLAN, 10.10.4.10)
-
-**Placement rationale:** Witness is dedicated entirely to the Detonation VLAN. It has a promiscuous mode NIC on the Detonation bridge and sees every packet that any malware VM sends or receives. Because this segment has strict isolation, the signal-to-noise ratio here is extremely high — every connection attempt, every DNS query, every byte transmitted is directly attributable to the sample being analyzed.
+**Placement rationale:** Witness is dedicated entirely to the Detonation VLAN. It sees every packet that any VM in the segment sends or receives — both malware VMs and analysis VMs. Because analysis VMs are ephemeral and colocated with their malware counterpart, Witness provides a complete picture of the entire research session at the network level.
 
 **What Witness captures:**
-- Every network connection attempt made by a detonating sample
-- DNS queries (even failed ones — malware often queries C2 domains before Dark Shrine can respond)
+- Every network connection attempt from detonating samples
+- DNS queries (including failed ones — malware often queries C2 before Dark Shrine responds)
 - HTTP/HTTPS transactions with Dark Shrine
-- Any protocol behavior that reveals malware capabilities (custom protocols, beaconing patterns, data exfiltration attempts)
-- Failed connection attempts — these are often as valuable as successful ones
+- Analysis VM network activity (threat intel pulls, tool downloads if permitted)
+- Any lateral movement attempts between VMs within the Detonation VLAN
+- Failed connection attempts — often as valuable as successful ones
 
-**Zeek log types enabled on Witness:** conn.log, dns.log, http.log, ssl.log, x509.log, files.log, weird.log, notice.log, intel.log
+**Zeek log types enabled:** conn, dns, http, ssl, x509, files, weird, notice, intel
 
-**Why intel.log matters on Witness:** Zeek's Intel framework allows you to feed in threat intelligence indicators (IPs, domains, hashes, certificates) and generate alerts when a sample contacts known-bad infrastructure. Seeding Witness with threat intel from your research adds another detection layer at the network level.
+**Why intel.log matters on Witness:** The Zeek Intel framework allows you to feed in threat intelligence indicators (IPs, domains, hashes, certificates) and alert when a sample contacts known-bad infrastructure. Seeding Witness with threat intel from your research adds a network-level detection layer.
 
 ### Telemetry Pipeline
 
-Both Arbiter and Witness run Elastic Agent alongside Zeek. Zeek outputs logs in JSON format, which Elastic Agent ships to Nexus using the Zeek integration. This means all network metadata lands in the same Elasticsearch indices as your endpoint telemetry — enabling correlation queries like "show me all processes that made network connections within 5 seconds of this DNS query."
-
-```
-Witness (Zeek JSON logs)
-        │
-        ▼
-Elastic Agent on Witness
-        │
-        ▼ TCP/9200
-Nexus (Elasticsearch)
-        │
-        ▼
-Kibana / Nexus Console
-```
+Both Arbiter and Witness run Elastic Agent alongside Zeek. Zeek outputs logs in JSON format, which Elastic Agent ships to Nexus using the native Zeek integration. All network metadata lands in the same Elasticsearch indices as endpoint telemetry — enabling queries like "show me all processes that made network connections within 5 seconds of this DNS query."
 
 ---
 
 ## Sample Intake Process
 
-Moving a malware sample from the real world into the Detonation VLAN is a deliberate, controlled process — not a casual file transfer. The following procedure ensures samples never touch your home network or analysis workstation in an unsafe state.
+Bringing a malware sample into the environment is a deliberate, controlled process.
 
-1. Download the sample to Void Prism (Analysis VLAN) via a secure transfer method — password-protected archive, MalwareBazaar API, or similar
-2. Perform initial static analysis on Void Prism — hash verification, string extraction, PE header analysis — before the sample ever touches a live execution environment
-3. Transfer the sample from Void Prism to the target Detonation VM via a Management-plane-mediated file transfer (SCP through the Ansible controller) — never via a direct network path between Analysis and Detonation
-4. Detonate in the Detonation VM with Witness and Elastic Agent running
-5. Observe telemetry in Nexus in real time
-6. After analysis, snapshot or destroy the Detonation VM — never reuse a detonated VM for a different sample
+1. Spin up the appropriate analysis/malware VM pair in the Detonation VLAN
+2. Transfer the sample directly to the analysis VM via Management-plane-mediated file transfer (SCP through Ansible controller) — never via direct path from your home machine into the Detonation VLAN
+3. Perform static analysis on the analysis VM — hash verification, strings, PE/ELF header analysis, YARA — before the sample ever touches a live execution environment
+4. Copy sample from analysis VM to malware VM within the Detonation VLAN
+5. Detonate with Witness running — all wire traffic and endpoint telemetry captured automatically
+6. Observe telemetry in Nexus in real time
+7. Document findings in Nexus Console
+8. Destroy both VMs — findings persist in Nexus, the VMs do not
 
 ---
 
 ## Azure Tier Equivalent
 
-In the Azure deployment tier, this segmentation model is implemented using:
+In the Azure deployment tier this segmentation model is implemented using:
 
 | Proxmox Construct | Azure Equivalent |
 |---|---|
 | VLAN | Subnet within a VNet |
 | Proxmox Firewall Rules | Network Security Groups (NSGs) |
+| VM-level firewall | NSG applied at NIC level |
 | Promiscuous mode bridge | VNet TAP / Network Watcher packet capture |
 | Virtual router | Azure Route Tables with forced tunneling |
 
-The logical isolation is identical. The implementation differs. Terraform modules for each tier handle this translation transparently — the same Ansible provisioning runs against both.
-
-> ⚠️ **Azure Note:** Azure does not support promiscuous mode NICs natively. Zeek sensor placement in the Azure tier uses Azure Network Watcher and VNet TAP where available, or a dedicated hub VNet with traffic mirroring. This is documented in detail in the Azure deployment tier documentation.
+> ⚠️ **Azure Note:** Azure does not support promiscuous mode NICs natively. Zeek sensor placement in the Azure tier uses Azure Network Watcher and VNet TAP where available. This is documented in detail in the Azure deployment tier documentation.
 
 ---
 
-## Future Considerations
+## Known Limitations and Caveats
 
-- **IPv6:** Currently out of scope. All Crucible networking is IPv4. Malware samples that use IPv6 for C2 evasion will have their IPv6 traffic dropped silently — this is a known limitation and worth noting in research documentation when relevant.
-- **Wireless simulation:** Not currently in scope but worth considering for research involving mobile malware or WiFi-adjacent TTPs.
-- **Inter-environment isolation:** If running multiple simultaneous research environments on the same Proxmox host, each environment should have its own VLAN set with non-overlapping IP ranges. Terraform profiles will handle this via variable input.
+### Single-Node vs Multi-Node Proxmox
+
+In a single Proxmox node deployment, all inter-VM traffic stays on the host's virtual bridges — Arbiter and Witness see everything. In a multi-node cluster, traffic between VMs on different physical hosts traverses the physical network and may not be visible to sensors on a different node.
+
+**Mitigation for multi-node deployments:**
+- Option 1: Pin all Crucible VMs to a single node using Proxmox affinity rules (simplest)
+- Option 2: Deploy Open vSwitch (OVS) with native port mirroring across nodes
+- Option 3: Deploy a dedicated monitoring bridge on each node with traffic mirroring
+
+The default Crucible deployment assumes single-node. Multi-node guidance is an advanced topic covered separately.
+
+### Hypervisor Trust Boundary
+
+Crucible's VLAN isolation relies on the Proxmox hypervisor enforcing virtual switch boundaries. A sufficiently privileged VM escape could potentially manipulate this boundary. Crucible mitigates this through defense in depth — host-based firewall on every VM, Elastic Agent visibility into anomalous behavior, and Witness capturing all wire traffic in the Detonation VLAN. For truly air-gapped malware detonation, physical separation on dedicated hardware is the only complete mitigation — this is outside Crucible's scope but worth noting for high-risk samples.
+
+### IPv6
+
+Currently out of scope. All Crucible networking is IPv4. Malware samples that use IPv6 for C2 evasion will have their IPv6 traffic dropped silently — worth noting in research documentation when relevant.
 
 ---
 
