@@ -1,19 +1,20 @@
+{{ '\x1b' }}[1;34m ██████╗██████╗ ██╗   ██╗ ██████╗██╗██████╗ ██╗     ███████╗{{ '\x1b' }}[0m
+{{ '\x1b' }}[1;34m██╔════╝██╔══██╗██║   ██║██╔════╝██║██╔══██╗██║     ██╔════╝{{ '\x1b' }}[0m
+{{ '\x1b' }}[1;36m██║     ██████╔╝██║   ██║██║     ██║██████╔╝██║     █████╗{{ '\x1b' }}[0m
+{{ '\x1b' }}[1;36m██║     ██╔══██╗██║   ██║██║     ██║██╔══██╗██║     ██╔══╝{{ '\x1b' }}[0m
+{{ '\x1b' }}[1;34m╚██████╗██║  ██║╚██████╔╝╚██████╗██║██████╔╝███████╗███████╗{{ '\x1b' }}[0m
+{{ '\x1b' }}[1;34m ╚═════╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝╚═════╝ ╚══════╝╚══════╝{{ '\x1b' }}[0m
 
- ██████╗██████╗ ██╗   ██╗ ██████╗██╗██████╗ ██╗     ███████╗
-██╔════╝██╔══██╗██║   ██║██╔════╝██║██╔══██╗██║     ██╔════╝
-██║     ██████╔╝██║   ██║██║     ██║██████╔╝██║     █████╗
-██║     ██╔══██╗██║   ██║██║     ██║██╔══██╗██║     ██╔══╝
-╚██████╗██║  ██║╚██████╔╝╚██████╗██║██████╔╝███████╗███████╗
- ╚═════╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝╚═════╝ ╚══════╝╚══════╝
+  {{ '\x1b' }}[1;33mA Portable Adversary Research Environment{{ '\x1b' }}[0m
+  {{ '\x1b' }}[0;36m"My life for Aiur."{{ '\x1b' }}[0m
 
-  A Portable Adversary Research Environment
+  {{ '\x1b' }}[1;33mHost:{{ '\x1b' }}[0m     {{ '\x1b' }}[0;37m{{ inventory_hostname }}{{ '\x1b' }}[0m
+  {{ '\x1b' }}[1;33mVLAN:{{ '\x1b' }}[0m     {{ '\x1b' }}[0;37m{{ crucible_vlan | default('unknown') }}{{ '\x1b' }}[0m
+  {{ '\x1b' }}[1;33mIP:{{ '\x1b' }}[0m       {{ '\x1b' }}[0;37m{{ ansible_default_ipv4.address | default('unknown') }}{{ '\x1b' }}[0m
+  {{ '\x1b' }}[1;33mRole:{{ '\x1b' }}[0m     {{ '\x1b' }}[0;37m{{ crucible_role | default('common-linux') }}{{ '\x1b' }}[0m
 
-  Host:     {{ inventory_hostname }}
-  VLAN:     {{ crucible_vlan | default('unknown') }}
-  IP:       {{ ansible_default_ipv4.address | default('unknown') }}
-  Role:     {{ crucible_role | default('common-linux') }}
-
-  ⚠  This system is part of an isolated research environment.
-     All activity is monitored and logged to Nexus.
-     Unauthorized access is prohibited.
+  {{ '\x1b' }}[1;31m⚠{{ '\x1b' }}[0m  {{ '\x1b' }}[0;36mThis system is part of an isolated research environment.{{ '\x1b' }}[0m
+     {{ '\x1b' }}[0;36mAll activity is monitored and logged to Nexus.{{ '\x1b' }}[0m
+     {{ '\x1b' }}[0;36mUnauthorized access is prohibited.{{ '\x1b' }}[0m
+{{ '\x1b' }}[0m
 
