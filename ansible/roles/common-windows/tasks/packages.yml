@@ -1,0 +1,46 @@
+---
+# common-windows/tasks/packages.yml
+# Chocolatey package management and Windows feature configuration
+
+- name: Install Chocolatey package manager
+  ansible.windows.win_powershell:
+    script: |
+      if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+        Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+        $Env:ChocolateyInstall = Convert-Path "$((Get-Command choco).Path)\..\.."
+        Import-Module "$Env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+        refreshenv
+      }
+  tags:
+    - packages
+
+- name: Install common Chocolatey packages
+  chocolatey.chocolatey.win_chocolatey:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ common_win_choco_packages }}"
+  tags:
+    - packages
+
+- name: Install required Windows features
+  ansible.windows.win_feature:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ common_win_features_install }}"
+  when: common_win_features_install | length > 0
+  tags:
+    - packages
+    - features
+
+- name: Remove unwanted Windows features
+  ansible.windows.win_feature:
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ common_win_features_remove }}"
+  when: common_win_features_remove | length > 0
+  tags:
+    - packages
+    - features
+    - hardening

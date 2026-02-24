@@ -1,0 +1,80 @@
+---
+# common-windows/tasks/firewall.yml
+# Windows Firewall baseline per Crucible network architecture
+# Additional per-VLAN or per-VM rules should be applied via group_vars
+
+- name: Enable Windows Firewall for all profiles
+  community.windows.win_firewall:
+    profiles: "{{ crucible_firewall_profiles }}"
+    state: enabled
+  when: crucible_firewall_enabled
+  tags:
+    - firewall
+    - hardening
+
+- name: Set default inbound policy to {{ crucible_firewall_default_inbound }}
+  ansible.windows.win_powershell:
+    script: |
+      {% for profile in crucible_firewall_profiles %}
+      Set-NetFirewallProfile -Profile {{ profile }} -DefaultInboundAction {{ crucible_firewall_default_inbound }}
+      {% endfor %}
+  when: crucible_firewall_enabled
+  tags:
+    - firewall
+    - hardening
+
+- name: Set default outbound policy to {{ crucible_firewall_default_outbound }}
+  ansible.windows.win_powershell:
+    script: |
+      {% for profile in crucible_firewall_profiles %}
+      Set-NetFirewallProfile -Profile {{ profile }} -DefaultOutboundAction {{ crucible_firewall_default_outbound }}
+      {% endfor %}
+  when: crucible_firewall_enabled
+  tags:
+    - firewall
+    - hardening
+
+- name: Enable firewall logging
+  ansible.windows.win_powershell:
+    script: |
+      {% for profile in crucible_firewall_profiles %}
+      Set-NetFirewallProfile -Profile {{ profile }} `
+        -LogBlocked True `
+        -LogAllowed False `
+        -LogFileName "%systemroot%\system32\LogFiles\Firewall\pfirewall.log" `
+        -LogMaxSizeKilobytes 32768
+      {% endfor %}
+  when: crucible_firewall_enabled
+  tags:
+    - firewall
+
+- name: Apply Crucible inbound firewall rules
+  community.windows.win_firewall_rule:
+    name: "{{ item.name }}"
+    direction: "{{ item.direction }}"
+    action: "{{ item.action }}"
+    protocol: "{{ item.protocol }}"
+    localport: "{{ item.localport }}"
+    remoteip: "{{ item.remoteip | default(omit) }}"
+    enabled: "{{ item.enabled | default(true) }}"
+    state: present
+  loop: "{{ crucible_firewall_rules | selectattr('direction', 'equalto', 'in') | list }}"
+  when: crucible_firewall_enabled
+  tags:
+    - firewall
+
+- name: Apply Crucible outbound firewall rules
+  community.windows.win_firewall_rule:
+    name: "{{ item.name }}"
+    direction: "{{ item.direction }}"
+    action: "{{ item.action }}"
+    protocol: "{{ item.protocol }}"
+    localport: "{{ item.localport }}"
+    remoteip: "{{ item.remoteip | default(omit) }}"
+    remoteport: "{{ item.remoteport | default(omit) }}"
+    enabled: "{{ item.enabled | default(true) }}"
+    state: present
+  loop: "{{ crucible_firewall_rules | selectattr('direction', 'equalto', 'out') | list }}"
+  when: crucible_firewall_enabled
+  tags:
+    - firewall

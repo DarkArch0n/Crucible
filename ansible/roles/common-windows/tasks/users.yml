@@ -1,0 +1,30 @@
+---
+# common-windows/tasks/users.yml
+# Research user creation and configuration
+
+- name: Create crucible research user
+  ansible.windows.win_user:
+    name: "{{ crucible_win_user }}"
+    fullname: "{{ crucible_win_user_fullname }}"
+    password: "{{ crucible_win_user_password }}"
+    password_never_expires: true
+    user_cannot_change_password: false
+    account_disabled: false
+    state: present
+    groups: "{{ crucible_win_user_groups }}"
+  tags:
+    - users
+
+- name: Ensure crucible user profile directory exists
+  ansible.windows.win_file:
+    path: "C:\\Users\\{{ crucible_win_user }}"
+    state: directory
+  tags:
+    - users
+
+- name: Create crucible user desktop shortcut folder
+  ansible.windows.win_file:
+    path: "C:\\Users\\{{ crucible_win_user }}\\Desktop\\Crucible"
+    state: directory
+  tags:
+    - users

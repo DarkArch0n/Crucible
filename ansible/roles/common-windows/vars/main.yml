@@ -1,0 +1,26 @@
+---
+# Role-specific variables for common-windows role
+# These are NOT intended to be overridden — use defaults/ for tunable values.
+
+# Crucible network architecture constants
+crucible_mgmt_subnet: 10.10.0.0/24
+crucible_core_subnet: 10.10.1.0/24
+crucible_detonation_subnet: 10.10.2.0/24
+
+# Core component IPs
+crucible_nexus_elasticsearch_ip: 10.10.1.10
+crucible_nexus_kibana_ip: 10.10.1.11
+crucible_nexus_console_ip: 10.10.1.12
+crucible_dark_shrine_ip: 10.10.1.20
+crucible_arbiter_ip: 10.10.1.30
+crucible_witness_ip: 10.10.2.10
+
+# Ports
+crucible_elasticsearch_port: 9200
+crucible_fleet_port: 8220
+crucible_kibana_port: 5601
+
+# Windows-specific paths
+crucible_log_dir: "C:\\Crucible\\Logs"
+crucible_tools_dir: "C:\\Crucible\\Tools"
+crucible_scripts_dir: "C:\\Crucible\\Scripts"

@@ -1,0 +1,109 @@
+---
+# common-windows/tests/test.yml
+# Test playbook for the common-windows role
+#
+# Usage:
+#   ansible-playbook tests/test.yml -i tests/inventory
+#
+# Run specific sections with tags:
+#   ansible-playbook tests/test.yml -i tests/inventory --tags "firewall,hardening"
+
+- name: Test common-windows role
+  hosts: all
+  gather_facts: yes
+  vars:
+    # Override defaults for testing
+    crucible_vlan: "test"
+    crucible_role: "test-vm"
+  roles:
+    - common-windows
+
+  post_tasks:
+    - name: Verify crucible user exists
+      ansible.windows.win_powershell:
+        script: |
+          $user = Get-LocalUser -Name "{{ crucible_win_user }}" -ErrorAction Stop
+          $Ansible.Result = @{ exists = $true; enabled = $user.Enabled }
+      register: user_check
+
+    - name: Assert crucible user exists and is enabled
+      ansible.builtin.assert:
+        that:
+          - user_check.result.exists
+          - user_check.result.enabled
+        fail_msg: "Crucible user does not exist or is disabled"
+
+    - name: Verify Windows Firewall is enabled
+      ansible.windows.win_powershell:
+        script: |
+          $profiles = Get-NetFirewallProfile
+          $allEnabled = ($profiles | Where-Object { $_.Enabled -eq $true }).Count -eq $profiles.Count
+          $Ansible.Result = @{ all_enabled = $allEnabled }
+      register: fw_check
+      when: crucible_firewall_enabled
+
+    - name: Assert firewall is enabled
+      ansible.builtin.assert:
+        that:
+          - fw_check.result.all_enabled
+        fail_msg: "Windows Firewall is not enabled on all profiles"
+      when: crucible_firewall_enabled
+
+    - name: Verify W32Time service is running
+      ansible.windows.win_service_info:
+        name: W32Time
+      register: w32time_check
+
+    - name: Assert W32Time is running
+      ansible.builtin.assert:
+        that:
+          - w32time_check.services[0].state == 'started'
+        fail_msg: "W32Time service is not running"
+
+    - name: Verify PowerShell Script Block Logging is enabled
+      ansible.windows.win_powershell:
+        script: |
+          $val = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" `
+            -Name EnableScriptBlockLogging -ErrorAction SilentlyContinue
+          $Ansible.Result = @{ enabled = ($val.EnableScriptBlockLogging -eq 1) }
+      register: ps_logging_check
+      when: crucible_powershell_scriptblock_logging
+
+    - name: Assert PowerShell Script Block Logging is enabled
+      ansible.builtin.assert:
+        that:
+          - ps_logging_check.result.enabled
+        fail_msg: "PowerShell Script Block Logging is not enabled"
+      when: crucible_powershell_scriptblock_logging
+
+    - name: Verify logon banner is configured
+      ansible.windows.win_powershell:
+        script: |
+          $caption = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" `
+            -Name legalnoticecaption -ErrorAction SilentlyContinue
+          $Ansible.Result = @{ configured = ($null -ne $caption.legalnoticecaption -and $caption.legalnoticecaption -ne '') }
+      register: banner_check
+      when: crucible_logon_banner_enabled
+
+    - name: Assert logon banner is configured
+      ansible.builtin.assert:
+        that:
+          - banner_check.result.configured
+        fail_msg: "Logon banner is not configured"
+      when: crucible_logon_banner_enabled
+
+    - name: Verify audit policy for Process Creation
+      ansible.windows.win_powershell:
+        script: |
+          $result = auditpol /get /subcategory:"Process Creation" /r | ConvertFrom-Csv
+          $Ansible.Result = @{
+            success = $result.'Inclusion Setting' -match 'Success'
+            failure = $result.'Inclusion Setting' -match 'Failure'
+          }
+      register: audit_check
+
+    - name: Assert Process Creation auditing is enabled
+      ansible.builtin.assert:
+        that:
+          - audit_check.result.success
+        fail_msg: "Process Creation audit policy is not enabled"

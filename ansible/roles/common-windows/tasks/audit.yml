@@ -1,0 +1,30 @@
+---
+# common-windows/tasks/audit.yml
+# Windows Advanced Audit Policy configuration
+# Enables granular auditing for security telemetry
+
+- name: Configure advanced audit policies
+  ansible.windows.win_powershell:
+    script: |
+      {% for policy in crucible_audit_policies %}
+      {% if policy.success and policy.failure %}
+      auditpol /set /subcategory:"{{ policy.subcategory }}" /success:enable /failure:enable
+      {% elif policy.success %}
+      auditpol /set /subcategory:"{{ policy.subcategory }}" /success:enable /failure:disable
+      {% elif policy.failure %}
+      auditpol /set /subcategory:"{{ policy.subcategory }}" /success:disable /failure:enable
+      {% endif %}
+      {% endfor %}
+  tags:
+    - audit
+    - hardening
+
+- name: Force audit policy subcategory override (GPO compatibility)
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Control\Lsa
+    name: SCENoApplyLegacyAuditPolicy
+    data: 1
+    type: dword
+  tags:
+    - audit
+    - hardening

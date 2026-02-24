@@ -1,0 +1,38 @@
+---
+# common-windows/tasks/time.yml
+# Timezone and NTP configuration
+# Consistent timestamps across all VMs are critical for telemetry correlation
+
+- name: Set timezone to {{ crucible_timezone }}
+  community.windows.win_timezone:
+    timezone: "{{ crucible_timezone }}"
+  tags:
+    - time
+    - ntp
+
+- name: Configure W32Time NTP server
+  ansible.windows.win_powershell:
+    script: |
+      w32tm /config /manualpeerlist:"{{ crucible_ntp_server }}" /syncfromflags:manual /reliable:yes /update
+  notify: Restart W32Time
+  tags:
+    - time
+    - ntp
+
+- name: Ensure W32Time service is enabled and running
+  ansible.windows.win_service:
+    name: W32Time
+    start_mode: auto
+    state: started
+  tags:
+    - time
+    - ntp
+
+- name: Force time sync
+  ansible.windows.win_powershell:
+    script: |
+      w32tm /resync /force
+  changed_when: false
+  tags:
+    - time
+    - ntp

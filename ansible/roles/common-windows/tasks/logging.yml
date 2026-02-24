@@ -1,0 +1,56 @@
+---
+# common-windows/tasks/logging.yml
+# Windows Event Log configuration for telemetry
+
+- name: Configure Event Log channel sizes
+  ansible.windows.win_powershell:
+    script: |
+      {% for channel in crucible_eventlog_channels %}
+      $log = Get-WinEvent -ListLog "{{ channel }}" -ErrorAction SilentlyContinue
+      if ($log) {
+        $log.MaximumSizeInBytes = {{ crucible_eventlog_max_size_kb }} * 1024
+        {% if not crucible_eventlog_retention %}
+        $log.LogMode = "Circular"
+        {% else %}
+        $log.LogMode = "Retain"
+        {% endif %}
+        $log.IsEnabled = $true
+        $log.SaveChanges()
+      }
+      {% endfor %}
+  tags:
+    - logging
+
+- name: Enable Sysmon operational log channel
+  ansible.windows.win_powershell:
+    script: |
+      $log = Get-WinEvent -ListLog "Microsoft-Windows-Sysmon/Operational" -ErrorAction SilentlyContinue
+      if ($log) {
+        $log.MaximumSizeInBytes = {{ crucible_eventlog_max_size_kb }} * 1024
+        $log.IsEnabled = $true
+        $log.SaveChanges()
+      }
+  when: crucible_sysmon_enabled
+  failed_when: false
+  tags:
+    - logging
+    - sysmon
+
+- name: Enable PowerShell Operational log channel
+  ansible.windows.win_powershell:
+    script: |
+      $log = Get-WinEvent -ListLog "Microsoft-Windows-PowerShell/Operational"
+      $log.MaximumSizeInBytes = {{ crucible_eventlog_max_size_kb }} * 1024
+      $log.IsEnabled = $true
+      $log.SaveChanges()
+  tags:
+    - logging
+    - powershell
+
+- name: Ensure Windows Event Log service is running
+  ansible.windows.win_service:
+    name: EventLog
+    start_mode: auto
+    state: started
+  tags:
+    - logging

@@ -1,0 +1,78 @@
+---
+# common-windows/tasks/main.yml
+# Dispatcher — includes all sub-task files in dependency order
+#
+# This role applies the common baseline configuration for all Windows VMs
+# in the Crucible environment. It handles Chocolatey packages, user setup,
+# WinRM/OpenSSH configuration, network settings, time synchronization,
+# Windows Firewall rules, security hardening, audit policy, logging,
+# service cleanup, and logon banner.
+#
+# Per-VLAN or per-VM overrides should be applied via group_vars/host_vars.
+
+- name: Create Crucible directory structure
+  ansible.windows.win_file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - "{{ crucible_log_dir }}"
+    - "{{ crucible_tools_dir }}"
+    - "{{ crucible_scripts_dir }}"
+    - "{{ crucible_powershell_transcription_path }}"
+  tags:
+    - setup
+
+- name: Include package management tasks
+  ansible.builtin.include_tasks: packages.yml
+  tags:
+    - packages
+
+- name: Include user management tasks
+  ansible.builtin.include_tasks: users.yml
+  tags:
+    - users
+
+- name: Include remote access configuration tasks
+  ansible.builtin.include_tasks: remote_access.yml
+  tags:
+    - remote_access
+
+- name: Include network configuration tasks
+  ansible.builtin.include_tasks: network.yml
+  tags:
+    - network
+
+- name: Include time synchronization tasks
+  ansible.builtin.include_tasks: time.yml
+  tags:
+    - time
+
+- name: Include firewall configuration tasks
+  ansible.builtin.include_tasks: firewall.yml
+  tags:
+    - firewall
+
+- name: Include security hardening tasks
+  ansible.builtin.include_tasks: hardening.yml
+  tags:
+    - hardening
+
+- name: Include audit policy tasks
+  ansible.builtin.include_tasks: audit.yml
+  tags:
+    - audit
+
+- name: Include logging configuration tasks
+  ansible.builtin.include_tasks: logging.yml
+  tags:
+    - logging
+
+- name: Include service management tasks
+  ansible.builtin.include_tasks: services.yml
+  tags:
+    - services
+
+- name: Include logon banner tasks
+  ansible.builtin.include_tasks: banner.yml
+  tags:
+    - banner

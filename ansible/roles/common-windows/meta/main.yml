@@ -1,0 +1,35 @@
+---
+# common-windows/meta/main.yml
+# Role metadata and dependencies
+
+galaxy_info:
+  role_name: common-windows
+  author: DarkArch0n
+  description: >-
+    Common Windows baseline configuration for all Windows VMs in the Crucible
+    adversary research environment. Handles Chocolatey package management,
+    user setup, WinRM/OpenSSH configuration, DNS (Dark Shrine), NTP,
+    Windows Firewall, registry hardening, audit policy, PowerShell logging,
+    event log configuration, and logon banner.
+  license: MIT
+  min_ansible_version: "2.14"
+
+  platforms:
+    - name: Windows
+      versions:
+        - 2022
+        - 2025
+    - name: Windows
+      versions:
+        - 10
+        - 11
+
+  galaxy_tags:
+    - security
+    - hardening
+    - windows
+    - research
+    - malware
+    - telemetry
+
+dependencies: []

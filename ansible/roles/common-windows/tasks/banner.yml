@@ -1,0 +1,31 @@
+---
+# common-windows/tasks/banner.yml
+# Windows logon banner (Legal Notice) — Protoss-themed
+
+- name: Set logon banner title
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+    name: legalnoticecaption
+    data: "{{ crucible_logon_banner_title }}"
+    type: string
+  when: crucible_logon_banner_enabled
+  tags:
+    - banner
+
+- name: Set logon banner text
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+    name: legalnoticetext
+    data: "{{ crucible_logon_banner_text }}"
+    type: string
+  when: crucible_logon_banner_enabled
+  tags:
+    - banner
+
+- name: Deploy Crucible PowerShell profile banner
+  ansible.windows.win_template:
+    src: ps_profile.ps1.j2
+    dest: "C:\\Crucible\\Scripts\\crucible-profile.ps1"
+  when: crucible_logon_banner_enabled
+  tags:
+    - banner

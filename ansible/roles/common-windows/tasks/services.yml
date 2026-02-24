@@ -1,0 +1,14 @@
+---
+# common-windows/tasks/services.yml
+# Disable unnecessary services to reduce attack surface and telemetry noise
+
+- name: Disable unnecessary services
+  ansible.windows.win_service:
+    name: "{{ item }}"
+    start_mode: disabled
+    state: stopped
+  loop: "{{ crucible_disabled_services }}"
+  failed_when: false
+  tags:
+    - services
+    - hardening

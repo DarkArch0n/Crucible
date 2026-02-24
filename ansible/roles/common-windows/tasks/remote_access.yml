@@ -1,0 +1,113 @@
+---
+# common-windows/tasks/remote_access.yml
+# WinRM, OpenSSH, and RDP configuration
+
+# --- WinRM ---
+- name: Configure WinRM HTTPS listener
+  ansible.windows.win_powershell:
+    script: |
+      $cert = Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {
+        $_.Subject -like "*{{ inventory_hostname }}*"
+      } | Select-Object -First 1
+
+      if (-not $cert) {
+        $cert = New-SelfSignedCertificate -DnsName "{{ inventory_hostname }}" `
+          -CertStoreLocation Cert:\LocalMachine\My `
+          -NotAfter (Get-Date).AddYears(5)
+      }
+
+      $listener = Get-WSManInstance -ResourceURI winrm/config/Listener `
+        -SelectorSet @{Address="*";Transport="HTTPS"} -ErrorAction SilentlyContinue
+
+      if (-not $listener) {
+        New-WSManInstance -ResourceURI winrm/config/Listener `
+          -SelectorSet @{Address="*";Transport="HTTPS"} `
+          -ValueSet @{CertificateThumbprint=$cert.Thumbprint}
+      }
+  when: crucible_winrm_enabled and crucible_winrm_https
+  tags:
+    - remote_access
+    - winrm
+
+- name: Configure WinRM settings
+  ansible.windows.win_powershell:
+    script: |
+      Set-Item WSMan:\localhost\Shell\MaxMemoryPerShellMB {{ crucible_winrm_max_memory_per_shell }}
+      Set-Item WSMan:\localhost\Shell\MaxProcessesPerShell {{ crucible_winrm_max_processes_per_shell }}
+      Set-Item WSMan:\localhost\MaxTimeoutms {{ crucible_winrm_max_timeout }}
+      Set-Item WSMan:\localhost\Service\AllowUnencrypted $false
+      Set-Item WSMan:\localhost\Service\Auth\Basic $false
+      Set-Item WSMan:\localhost\Service\Auth\CredSSP $false
+  when: crucible_winrm_enabled
+  notify: Restart WinRM
+  tags:
+    - remote_access
+    - winrm
+
+# --- OpenSSH ---
+- name: Install OpenSSH Server feature
+  ansible.windows.win_feature:
+    name: OpenSSH-Server
+    state: present
+  when: crucible_openssh_enabled
+  register: openssh_install
+  failed_when: false
+  tags:
+    - remote_access
+    - ssh
+
+- name: Install OpenSSH via optional feature (Windows 10/11)
+  ansible.windows.win_powershell:
+    script: |
+      $ssh = Get-WindowsCapability -Online | Where-Object Name -like 'OpenSSH.Server*'
+      if ($ssh.State -ne 'Installed') {
+        Add-WindowsCapability -Online -Name $ssh.Name
+      }
+  when: crucible_openssh_enabled and (openssh_install is failed or openssh_install is skipped)
+  tags:
+    - remote_access
+    - ssh
+
+- name: Configure OpenSSH port
+  ansible.windows.win_lineinfile:
+    path: C:\ProgramData\ssh\sshd_config
+    regexp: '^#?Port '
+    line: "Port {{ crucible_openssh_port }}"
+  when: crucible_openssh_enabled
+  notify: Restart sshd
+  tags:
+    - remote_access
+    - ssh
+
+- name: Enable and start OpenSSH Server
+  ansible.windows.win_service:
+    name: sshd
+    start_mode: auto
+    state: started
+  when: crucible_openssh_enabled
+  tags:
+    - remote_access
+    - ssh
+
+# --- RDP ---
+- name: Enable Remote Desktop
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server
+    name: fDenyTSConnections
+    data: 0
+    type: dword
+  when: crucible_rdp_enabled
+  tags:
+    - remote_access
+    - rdp
+
+- name: Require Network Level Authentication for RDP
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp
+    name: UserAuthentication
+    data: 1
+    type: dword
+  when: crucible_rdp_enabled and crucible_rdp_nla_required
+  tags:
+    - remote_access
+    - rdp

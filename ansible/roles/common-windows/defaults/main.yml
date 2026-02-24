@@ -1,0 +1,296 @@
+---
+# Default variables for common-windows role
+# These can be overridden per host/group in inventory
+
+# ------------------------------------------------------------------------------
+# Packages (Chocolatey)
+# ------------------------------------------------------------------------------
+common_win_choco_packages:
+  - git
+  - 7zip
+  - notepadplusplus
+  - sysinternals
+  - curl
+  - wget
+  - vim
+  - grep
+  - jq
+
+common_win_features_install:
+  - NET-Framework-Core
+
+common_win_features_remove:
+  - Telnet-Client
+  - TFTP-Client
+  - SMB1Protocol
+
+# ------------------------------------------------------------------------------
+# Users
+# ------------------------------------------------------------------------------
+crucible_win_user: crucible
+crucible_win_user_fullname: Crucible Research
+crucible_win_user_groups:
+  - Administrators
+# Set a strong password — override in vault
+crucible_win_user_password: "{{ vault_crucible_win_password | default('ChangeMe!2026') }}"
+
+# ------------------------------------------------------------------------------
+# WinRM / Remote Access
+# ------------------------------------------------------------------------------
+crucible_winrm_enabled: true
+crucible_winrm_https: true
+crucible_winrm_port: 5986
+crucible_winrm_max_memory_per_shell: 1024
+crucible_winrm_max_processes_per_shell: 25
+crucible_winrm_max_timeout: 1800000
+
+# OpenSSH (optional secondary access)
+crucible_openssh_enabled: true
+crucible_openssh_port: 22
+
+# RDP
+crucible_rdp_enabled: true
+crucible_rdp_nla_required: true
+
+# ------------------------------------------------------------------------------
+# Network
+# ------------------------------------------------------------------------------
+crucible_dns_servers:
+  - 10.10.1.20
+crucible_dns_search_domain: crucible.local
+crucible_disable_ipv6: true
+crucible_set_hostname: true
+
+# ------------------------------------------------------------------------------
+# Time
+# ------------------------------------------------------------------------------
+crucible_timezone: UTC
+crucible_ntp_server: 10.10.1.20
+
+# ------------------------------------------------------------------------------
+# Firewall (Windows Firewall)
+# ------------------------------------------------------------------------------
+crucible_firewall_enabled: true
+
+# Profiles to enable (Domain, Private, Public)
+crucible_firewall_profiles:
+  - Domain
+  - Private
+  - Public
+
+# Default actions
+crucible_firewall_default_inbound: Block
+crucible_firewall_default_outbound: Block
+
+# Base rules applied to all Windows VMs
+crucible_firewall_rules:
+  # Allow WinRM from Management VLAN
+  - name: Crucible - WinRM HTTPS from Management
+    direction: in
+    action: allow
+    protocol: tcp
+    localport: 5986
+    remoteip: 10.10.0.0/24
+    enabled: true
+  # Allow RDP from Management VLAN
+  - name: Crucible - RDP from Management
+    direction: in
+    action: allow
+    protocol: tcp
+    localport: 3389
+    remoteip: 10.10.0.0/24
+    enabled: true
+  # Allow SSH from Management VLAN
+  - name: Crucible - SSH from Management
+    direction: in
+    action: allow
+    protocol: tcp
+    localport: 22
+    remoteip: 10.10.0.0/24
+    enabled: true
+  # Allow Elastic Agent telemetry to Nexus
+  - name: Crucible - Elasticsearch to Nexus
+    direction: out
+    action: allow
+    protocol: tcp
+    localport: any
+    remoteip: 10.10.1.10
+    remoteport: 9200
+    enabled: true
+  # Allow Fleet enrollment
+  - name: Crucible - Fleet to Nexus
+    direction: out
+    action: allow
+    protocol: tcp
+    localport: any
+    remoteip: 10.10.1.10
+    remoteport: 8220
+    enabled: true
+  # Allow DNS to Dark Shrine
+  - name: Crucible - DNS to Dark Shrine
+    direction: out
+    action: allow
+    protocol: udp
+    localport: any
+    remoteip: 10.10.1.20
+    remoteport: 53
+    enabled: true
+  # Allow NTP
+  - name: Crucible - NTP to Dark Shrine
+    direction: out
+    action: allow
+    protocol: udp
+    localport: any
+    remoteip: 10.10.1.20
+    remoteport: 123
+    enabled: true
+
+# ------------------------------------------------------------------------------
+# Security Hardening (Registry / GPO-equivalent)
+# ------------------------------------------------------------------------------
+
+# Audit policy categories to enable
+crucible_audit_policies:
+  - subcategory: Logon
+    success: true
+    failure: true
+  - subcategory: Logoff
+    success: true
+    failure: false
+  - subcategory: Account Lockout
+    success: true
+    failure: true
+  - subcategory: Special Logon
+    success: true
+    failure: true
+  - subcategory: Process Creation
+    success: true
+    failure: true
+  - subcategory: Process Termination
+    success: true
+    failure: false
+  - subcategory: Security Group Management
+    success: true
+    failure: true
+  - subcategory: User Account Management
+    success: true
+    failure: true
+  - subcategory: Credential Validation
+    success: true
+    failure: true
+  - subcategory: Detailed File Share
+    success: true
+    failure: true
+  - subcategory: Registry
+    success: true
+    failure: true
+  - subcategory: Filtering Platform Connection
+    success: true
+    failure: true
+
+# Enable command-line in process creation events (Event ID 4688)
+crucible_audit_command_line: true
+
+# Enable PowerShell script block logging
+crucible_powershell_scriptblock_logging: true
+crucible_powershell_module_logging: true
+crucible_powershell_transcription: true
+crucible_powershell_transcription_path: "C:\\Crucible\\Logs\\PSTranscripts"
+
+# Sysmon (deployed separately via elastic-agent-windows, but config path set here)
+crucible_sysmon_enabled: true
+
+# Registry hardening settings
+crucible_registry_hardening:
+  # Disable SMBv1
+  - path: HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters
+    name: SMB1
+    type: dword
+    value: 0
+  # Disable LLMNR
+  - path: HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient
+    name: EnableMulticast
+    type: dword
+    value: 0
+  # Disable NetBIOS over TCP/IP (0=default, 1=enable, 2=disable)
+  - path: HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters
+    name: NodeType
+    type: dword
+    value: 2
+  # Disable WPAD
+  - path: HKLM:\SYSTEM\CurrentControlSet\Services\WinHttpAutoProxySvc
+    name: Start
+    type: dword
+    value: 4
+  # Disable WDigest credential caching
+  - path: HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest
+    name: UseLogonCredential
+    type: dword
+    value: 0
+  # Enable LSA protection
+  - path: HKLM:\SYSTEM\CurrentControlSet\Control\Lsa
+    name: RunAsPPL
+    type: dword
+    value: 1
+  # Restrict anonymous enumeration of SAM accounts
+  - path: HKLM:\SYSTEM\CurrentControlSet\Control\Lsa
+    name: RestrictAnonymousSAM
+    type: dword
+    value: 1
+  # Restrict anonymous enumeration of shares
+  - path: HKLM:\SYSTEM\CurrentControlSet\Control\Lsa
+    name: RestrictAnonymous
+    type: dword
+    value: 1
+  # Disable remote registry
+  - path: HKLM:\SYSTEM\CurrentControlSet\Services\RemoteRegistry
+    name: Start
+    type: dword
+    value: 4
+  # UAC: Always notify
+  - path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+    name: ConsentPromptBehaviorAdmin
+    type: dword
+    value: 2
+  # UAC: Enable
+  - path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+    name: EnableLUA
+    type: dword
+    value: 1
+
+# ------------------------------------------------------------------------------
+# Logging
+# ------------------------------------------------------------------------------
+# Windows Event Log retention
+crucible_eventlog_max_size_kb: 524288
+crucible_eventlog_retention: false
+crucible_eventlog_channels:
+  - Security
+  - System
+  - Application
+  - Microsoft-Windows-PowerShell/Operational
+  - Microsoft-Windows-Sysmon/Operational
+
+# ------------------------------------------------------------------------------
+# Services to disable
+# ------------------------------------------------------------------------------
+crucible_disabled_services:
+  - RemoteRegistry
+  - Fax
+  - XblAuthManager
+  - XblGameSave
+  - XboxNetApiSvc
+  - XboxGipSvc
+  - MapsBroker
+  - lfsvc
+  - SharedAccess
+
+# ------------------------------------------------------------------------------
+# Logon Banner
+# ------------------------------------------------------------------------------
+crucible_logon_banner_enabled: true
+crucible_logon_banner_title: "CRUCIBLE — Adversary Research Environment"
+crucible_logon_banner_text: >-
+  This system is part of an isolated research environment.
+  All activity is monitored and logged to Nexus.
+  Unauthorized access is prohibited. En Taro Adun.

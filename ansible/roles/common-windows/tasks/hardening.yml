@@ -1,0 +1,112 @@
+---
+# common-windows/tasks/hardening.yml
+# Registry-based security hardening (GPO-equivalent settings)
+
+- name: Apply registry hardening settings
+  ansible.windows.win_regedit:
+    path: "{{ item.path }}"
+    name: "{{ item.name }}"
+    data: "{{ item.value }}"
+    type: "{{ item.type }}"
+    state: present
+  loop: "{{ crucible_registry_hardening }}"
+  tags:
+    - hardening
+    - registry
+
+# --- PowerShell Logging ---
+- name: Enable PowerShell Script Block Logging
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging
+    name: EnableScriptBlockLogging
+    data: 1
+    type: dword
+  when: crucible_powershell_scriptblock_logging
+  tags:
+    - hardening
+    - logging
+    - powershell
+
+- name: Enable PowerShell Script Block Invocation Logging
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging
+    name: EnableScriptBlockInvocationLogging
+    data: 1
+    type: dword
+  when: crucible_powershell_scriptblock_logging
+  tags:
+    - hardening
+    - logging
+    - powershell
+
+- name: Enable PowerShell Module Logging
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ModuleLogging
+    name: EnableModuleLogging
+    data: 1
+    type: dword
+  when: crucible_powershell_module_logging
+  tags:
+    - hardening
+    - logging
+    - powershell
+
+- name: Set PowerShell Module Logging to log all modules
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ModuleLogging\ModuleNames
+    name: '*'
+    data: '*'
+    type: string
+  when: crucible_powershell_module_logging
+  tags:
+    - hardening
+    - logging
+    - powershell
+
+- name: Enable PowerShell Transcription
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\Transcription
+    name: EnableTranscripting
+    data: 1
+    type: dword
+  when: crucible_powershell_transcription
+  tags:
+    - hardening
+    - logging
+    - powershell
+
+- name: Set PowerShell Transcription output directory
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\Transcription
+    name: OutputDirectory
+    data: "{{ crucible_powershell_transcription_path }}"
+    type: string
+  when: crucible_powershell_transcription
+  tags:
+    - hardening
+    - logging
+    - powershell
+
+- name: Include invocation headers in transcription
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\Transcription
+    name: EnableInvocationHeader
+    data: 1
+    type: dword
+  when: crucible_powershell_transcription
+  tags:
+    - hardening
+    - logging
+    - powershell
+
+# --- Process Creation Auditing ---
+- name: Enable command-line in process creation events (4688)
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit
+    name: ProcessCreationIncludeCmdLine_Enabled
+    data: 1
+    type: dword
+  when: crucible_audit_command_line
+  tags:
+    - hardening
+    - audit

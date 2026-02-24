@@ -1,0 +1,29 @@
+# Crucible PowerShell Profile Banner
+# Deployed by Ansible (common-windows role)
+# Protoss color scheme: Gold primary, Blue frame, Cyan psionic
+
+function Show-CrucibleBanner {
+    $ESC = [char]27
+    Write-Host ""
+    Write-Host "${ESC}[1;34m ██████╗██████╗ ██╗   ██╗ ██████╗██╗██████╗ ██╗     ███████╗${ESC}[0m"
+    Write-Host "${ESC}[1;34m██╔════╝██╔══██╗██║   ██║██╔════╝██║██╔══██╗██║     ██╔════╝${ESC}[0m"
+    Write-Host "${ESC}[1;36m██║     ██████╔╝██║   ██║██║     ██║██████╔╝██║     █████╗${ESC}[0m"
+    Write-Host "${ESC}[1;36m██║     ██╔══██╗██║   ██║██║     ██║██╔══██╗██║     ██╔══╝${ESC}[0m"
+    Write-Host "${ESC}[1;34m╚██████╗██║  ██║╚██████╔╝╚██████╗██║██████╔╝███████╗███████╗${ESC}[0m"
+    Write-Host "${ESC}[1;34m ╚═════╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝╚═════╝ ╚══════╝╚══════╝${ESC}[0m"
+    Write-Host ""
+    Write-Host "  ${ESC}[1;33mA Portable Adversary Research Environment${ESC}[0m"
+    Write-Host "  ${ESC}[0;36m`"My life for Aiur.`"${ESC}[0m"
+    Write-Host ""
+    Write-Host "  ${ESC}[1;33mHost:${ESC}[0m     ${ESC}[0;37m$env:COMPUTERNAME${ESC}[0m"
+    Write-Host "  ${ESC}[1;33mUser:${ESC}[0m     ${ESC}[0;37m$env:USERNAME${ESC}[0m"
+    Write-Host "  ${ESC}[1;33mVLAN:${ESC}[0m     ${ESC}[0;37m{{ crucible_vlan | default('unknown') }}${ESC}[0m"
+    Write-Host "  ${ESC}[1;33mRole:${ESC}[0m     ${ESC}[0;37m{{ crucible_role | default('common-windows') }}${ESC}[0m"
+    Write-Host ""
+    Write-Host "  ${ESC}[1;31m⚠${ESC}[0m  ${ESC}[0;36mThis system is part of an isolated research environment.${ESC}[0m"
+    Write-Host "     ${ESC}[0;36mAll activity is monitored and logged to Nexus.${ESC}[0m"
+    Write-Host "     ${ESC}[0;36mUnauthorized access is prohibited.${ESC}[0m"
+    Write-Host ""
+}
+
+Show-CrucibleBanner

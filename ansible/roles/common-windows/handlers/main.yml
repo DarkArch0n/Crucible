@@ -1,0 +1,28 @@
+---
+# common-windows/handlers/main.yml
+# Service restart handlers triggered by configuration changes
+
+- name: Restart WinRM
+  ansible.windows.win_service:
+    name: WinRM
+    state: restarted
+
+- name: Restart sshd
+  ansible.windows.win_service:
+    name: sshd
+    state: restarted
+
+- name: Restart W32Time
+  ansible.windows.win_service:
+    name: W32Time
+    state: restarted
+
+- name: Restart Windows Firewall
+  ansible.windows.win_service:
+    name: MpsSvc
+    state: restarted
+
+- name: Restart EventLog
+  ansible.windows.win_service:
+    name: EventLog
+    state: restarted
